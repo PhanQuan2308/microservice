@@ -42,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
 
     private Address convertToEntity(AddressDTO addressDTO) {
         Address address = new Address();
+        address.setAddressId(addressDTO.getAddressId());
         address.setRecipientName(addressDTO.getRecipientName());
         address.setRecipientAddress(addressDTO.getRecipientAddress());
         address.setRecipientPhone(addressDTO.getRecipientPhone());
@@ -49,6 +50,7 @@ public class OrderServiceImpl implements OrderService {
     }
     private AddressDTO convertToDTO(Address address) {
         AddressDTO addressDTO = new AddressDTO();
+        addressDTO.setAddressId(address.getAddressId());
         addressDTO.setRecipientName(address.getRecipientName());
         addressDTO.setRecipientAddress(address.getRecipientAddress());
         addressDTO.setRecipientPhone(address.getRecipientPhone());

@@ -1,6 +1,7 @@
 package org.example.userservice.service;
 
 
+import org.example.userservice.dto.UserDTO;
 import org.example.userservice.entity.TokenBlackList;
 import org.example.userservice.entity.User;
 import org.example.userservice.repository.TokenBlacklistRepository;
@@ -12,10 +13,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Optional;
-import java.util.TimeZone;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService implements IUserService {
@@ -24,6 +23,14 @@ public class UserService implements IUserService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    private UserDTO convertToDTO(User user) {
+        UserDTO userDTO = new UserDTO();
+        userDTO.setId(user.getId());
+        userDTO.setUsername(user.getUsername());
+        userDTO.setRole(user.getRole());
+        return userDTO;
+    }
 
     @Autowired
     private TokenBlacklistRepository tokenBlacklistRepository;
@@ -78,6 +85,52 @@ public class UserService implements IUserService {
         System.out.println("Token added to blacklist successfully");
 
         return "Logout successful";
+    }
+
+    @Override
+    public List<UserDTO> getAllUsers() {
+        List<User> users = userRepository.findAll();
+        return users.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public Optional<UserDTO> getUserById(Long id) {
+        return userRepository.findById(id)
+                .map(this::convertToDTO);
+    }
+
+    public String updateUser(User user) {
+        Optional<User> optionalUser = userRepository.findById(user.getId());
+        if(optionalUser.isPresent()) {
+            User existingUser = optionalUser.get();
+
+            if(existingUser.getUsername().equals(user.getUsername())) {
+                existingUser.setUsername(user.getUsername());
+            }
+            if(existingUser.getPassword().equals(user.getPassword())) {
+                existingUser.setPassword(user.getPassword());
+            }
+            if(existingUser.getRole().equals(user.getRole())) {
+                existingUser.setRole(user.getRole());
+            }
+
+            userRepository.save(existingUser);
+            return "User updated successfully";
+
+        } else {
+            throw new RuntimeException("User not found");
+        }
+    }
+
+    public String deleteUser(Long id) {
+        if(userRepository.existsById(id)) {
+            userRepository.deleteById(id);
+            return "User deleted successfully";
+        }
+        else {
+            throw new RuntimeException("User not found");
+        }
     }
 
 }

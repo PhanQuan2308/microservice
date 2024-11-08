@@ -27,7 +27,7 @@ public class ProductController {
             @ModelAttribute ProductDTO productDTO,
             @RequestParam(value = "images", required = false) List<MultipartFile> images) {
         try {
-            if (images == null) images = new ArrayList<>(); // Đảm bảo danh sách không phải `null`
+            if (images == null) images = new ArrayList<>();
             ProductDTO createdProduct = productService.createProductWithImages(productDTO, images);
             return ResponseEntity.ok(createdProduct);
         } catch (IOException e) {
