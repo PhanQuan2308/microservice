@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -135,23 +136,35 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void updatePartialImageUrls(Long productId, List<String> imageUrlsToDelete, List<MultipartFile> newImages) throws IOException {
+        if ((imageUrlsToDelete == null || imageUrlsToDelete.isEmpty()) &&
+                (newImages == null || newImages.isEmpty())) {
+            return;
+        }
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        List<String> currentPaths = new ArrayList<>(product.getImagePathsList());
 
+        List<String> currentPaths = new ArrayList<>(product.getImagePathsList());
         currentPaths.removeAll(imageUrlsToDelete);
 
-        Files.createDirectories(Paths.get(uploadDir));
         for (MultipartFile file : newImages) {
             String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
             Path filePath = Paths.get(uploadDir + fileName);
+            Files.createDirectories(filePath.getParent());
             Files.write(filePath, file.getBytes());
-            currentPaths.add(filePath.toString());
+            currentPaths.add("/uploads/images/" + fileName);
         }
 
-        product.setImagePathsList(currentPaths);
+        if (currentPaths.isEmpty()) {
+            product.setImagePathsList(Collections.emptyList());
+        } else {
+            product.setImagePathsList(currentPaths);
+        }
+
         productRepository.save(product);
     }
+
+
 
     @Override
     public List<String> getImageUrls(Long productId) {

@@ -1,5 +1,7 @@
 package org.example.productservice.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.service.impl.ProductService;
 import org.slf4j.Logger;
@@ -49,32 +51,13 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
-    @PutMapping("/{productId}/with-images")
-    public ResponseEntity<ProductDTO> updateProductWithImages(
-            @PathVariable Long productId,
-            @ModelAttribute ProductDTO productDTO,
-            @RequestParam("images") List<MultipartFile> images) {
-        try {
-            ProductDTO updatedProduct = productService.updateProductWithImages(productId, productDTO, images);
-            return ResponseEntity.ok(updatedProduct);
-        } catch (IOException e) {
-            logger.error("Error updating product with images", e);
-            return ResponseEntity.status(500).build();
-        }
-    }
-
     @PutMapping("/{productId}/images/partial")
     public ResponseEntity<Void> updatePartialProductImages(
             @PathVariable Long productId,
-            @RequestParam List<String> imageUrlsToDelete,
-            @RequestPart("newImages") List<MultipartFile> newImages) {
+            @RequestParam("imageUrlsToDelete") String imageUrlsToDeleteJson,
+            @RequestPart(value = "newImages", required = false) List<MultipartFile> newImages) {
         try {
-
-
-            for (MultipartFile file : newImages) {
-                logger.info("File name: {}, File size: {}", file.getOriginalFilename(), file.getSize());
-            }
-
+            List<String> imageUrlsToDelete = new ObjectMapper().readValue(imageUrlsToDeleteJson, new TypeReference<List<String>>() {});
             productService.updatePartialImageUrls(productId, imageUrlsToDelete, newImages);
             return ResponseEntity.ok().build();
         } catch (IOException e) {
@@ -82,6 +65,9 @@ public class ProductController {
             return ResponseEntity.status(500).build();
         }
     }
+
+
+
 
     @GetMapping("/{productId}/images")
     public ResponseEntity<List<String>> getProductImages(@PathVariable Long productId) {
