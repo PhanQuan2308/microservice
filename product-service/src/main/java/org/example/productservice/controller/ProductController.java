@@ -3,6 +3,7 @@ package org.example.productservice.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.productservice.dto.ProductDTO;
+import org.example.productservice.service.CloudinaryService;
 import org.example.productservice.service.impl.ProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,9 @@ public class ProductController {
     private static final Logger logger = LoggerFactory.getLogger(ProductController.class);
 
     @Autowired
+    private CloudinaryService cloudinaryService;
+
+    @Autowired
     private ProductService productService;
 
     @PostMapping("/with-images")
@@ -38,6 +42,15 @@ public class ProductController {
         }
     }
 
+    @PostMapping("/upload-test")
+    public ResponseEntity<String> testUploadImage(@RequestParam("image") MultipartFile image) {
+        try {
+            String imageUrl = cloudinaryService.uploadImage(image);
+            return ResponseEntity.ok("Image uploaded successfully: " + imageUrl);
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("Error uploading image: " + e.getMessage());
+        }
+    }
 
     @GetMapping
     public ResponseEntity<List<ProductDTO>> getAllProducts() {

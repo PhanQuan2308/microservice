@@ -26,8 +26,12 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private CategoryRepository categoryRepository;
+
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private CloudinaryService cloudinaryService;
 
     private ProductDTO convertToProductDTO(Product product) {
 
@@ -76,7 +80,7 @@ public class ProductServiceImpl implements ProductService {
 
         if (images != null) {
             for (MultipartFile image : images) {
-                String imageUrl = saveImageToServer(image);
+                String imageUrl = cloudinaryService.uploadImage(image);
                 imageUrls.add(imageUrl);
             }
         }
@@ -100,6 +104,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
+        // Update product details
         product.setProductName(productDTO.getProductName());
         product.setDescription(productDTO.getDescription());
         product.setPriceInput(productDTO.getPriceInput());
@@ -108,23 +113,21 @@ public class ProductServiceImpl implements ProductService {
         product.setDiscount(productDTO.getDiscount());
         product.setStockStatus(productDTO.getStockStatus());
         product.setWeight(productDTO.getWeight());
+
+        // Update category if necessary
         if (productDTO.getCategoryName() != null) {
             Category category = categoryRepository.findCategoryByName(productDTO.getCategoryName())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
             product.setCategory(category);
         }
 
+        // Update images if new images are provided
         if (images != null && !images.isEmpty()) {
             deleteAllImageUrls(productId);
-
             List<String> imagePaths = new ArrayList<>();
-            Files.createDirectories(Paths.get(uploadDir));
-
             for (MultipartFile file : images) {
-                String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-                Path filePath = Paths.get(uploadDir + fileName);
-                Files.write(filePath, file.getBytes());
-                imagePaths.add(filePath.toString());
+                String imageUrl = cloudinaryService.uploadImage(file);
+                imagePaths.add(imageUrl);
             }
             product.setImagePathsList(imagePaths);
         }
