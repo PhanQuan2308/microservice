@@ -44,16 +44,22 @@ public class OrderServiceImpl implements OrderService {
         Address address = new Address();
         address.setAddressId(addressDTO.getAddressId());
         address.setRecipientName(addressDTO.getRecipientName());
-        address.setRecipientAddress(addressDTO.getRecipientAddress());
         address.setRecipientPhone(addressDTO.getRecipientPhone());
+        address.setRecipientEmail(addressDTO.getRecipientEmail());
+        address.setRecipientAddress(addressDTO.getRecipientAddress());
+        address.setRecipientCity(addressDTO.getRecipientCity());
+        address.setRecipientCountry(addressDTO.getRecipientCountry());
         return address;
     }
     private AddressDTO convertToDTO(Address address) {
         AddressDTO addressDTO = new AddressDTO();
         addressDTO.setAddressId(address.getAddressId());
         addressDTO.setRecipientName(address.getRecipientName());
-        addressDTO.setRecipientAddress(address.getRecipientAddress());
         addressDTO.setRecipientPhone(address.getRecipientPhone());
+        addressDTO.setRecipientEmail(address.getRecipientEmail());
+        addressDTO.setRecipientAddress(address.getRecipientAddress());
+        addressDTO.setRecipientCity(address.getRecipientCity());
+        addressDTO.setRecipientCountry(address.getRecipientCountry());
         return addressDTO;
     }
 
@@ -200,5 +206,28 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findAll().stream()
                 .map(this::convertToOrderDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public AddressDTO updateAddress(Long orderId, AddressDTO updatedAddressDTO) {
+        Order existOrderId = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        Address existingAddress = existOrderId.getAddress();
+        if(existingAddress == null){
+            existingAddress = new Address();
+            existOrderId.setAddress(existingAddress);
+        }
+
+        existingAddress.setRecipientName(updatedAddressDTO.getRecipientName());
+        existingAddress.setRecipientPhone(updatedAddressDTO.getRecipientPhone());
+        existingAddress.setRecipientEmail(updatedAddressDTO.getRecipientEmail());
+        existingAddress.setRecipientAddress(updatedAddressDTO.getRecipientAddress());
+        existingAddress.setRecipientCity(updatedAddressDTO.getRecipientCity());
+        existingAddress.setRecipientCountry(updatedAddressDTO.getRecipientCountry());
+
+        orderRepository.save(existOrderId);
+        return convertToDTO(existingAddress);
     }
 }

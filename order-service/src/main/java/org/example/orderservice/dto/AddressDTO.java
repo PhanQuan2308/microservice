@@ -8,7 +8,9 @@ import lombok.Setter;
 public class AddressDTO {
     private Long addressId;
     private String recipientName;
-    private String recipientAddress;
     private String recipientPhone;
-
+    private String recipientEmail;
+    private String recipientAddress;
+    private String recipientCity;
+    private String recipientCountry;
 }

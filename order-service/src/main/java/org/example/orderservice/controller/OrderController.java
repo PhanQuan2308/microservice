@@ -1,12 +1,13 @@
 package org.example.orderservice.controller;
 
+import org.example.orderservice.dto.AddressDTO;
 import org.example.orderservice.dto.OrderDTO;
 import org.example.orderservice.service.OrderServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,10 +21,9 @@ public class OrderController {
     private OrderServiceImpl orderService;
 
     @PostMapping("/create")
-    public ResponseEntity<Map<String, Object>> createOrder(
-            @RequestBody OrderDTO orderDTO,
-            @RequestHeader("X-User-Id") String userId) {
-
+    public ResponseEntity<Map<String, Object>> createOrder(@RequestBody OrderDTO orderDTO) {
+        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        System.out.printf("userId = %s", userId);
         orderDTO.setUserId(Long.parseLong(userId));
 
         OrderDTO createdOrder = orderService.createOrder(orderDTO);
@@ -63,4 +63,11 @@ public class OrderController {
         orderService.deleteOrder(orderId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{orderId}/address")
+    public ResponseEntity<AddressDTO> updateAddress(@PathVariable Long orderId, @RequestBody AddressDTO updatedAddressDTO) {
+        AddressDTO updatedAddress = orderService.updateAddress(orderId, updatedAddressDTO);
+        return ResponseEntity.ok(updatedAddress);
+    }
+
 }

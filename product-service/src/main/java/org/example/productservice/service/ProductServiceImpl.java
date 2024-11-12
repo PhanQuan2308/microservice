@@ -93,7 +93,6 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Cập nhật chi tiết sản phẩm
         product.setProductName(productDTO.getProductName());
         product.setDescription(productDTO.getDescription());
         product.setPriceInput(productDTO.getPriceInput());

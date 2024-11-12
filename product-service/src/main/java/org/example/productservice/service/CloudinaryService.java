@@ -27,13 +27,10 @@ public class CloudinaryService {
     }
 
     public Map<String, String> uploadImage(MultipartFile file) throws IOException {
-        logger.info("Starting upload to Cloudinary...");
         try {
             Map<String, String> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
-            logger.info("Upload successful: " + uploadResult);
             return uploadResult;
         } catch (IOException e) {
-            logger.error("Error during upload to Cloudinary", e);
             throw e;
         }
     }

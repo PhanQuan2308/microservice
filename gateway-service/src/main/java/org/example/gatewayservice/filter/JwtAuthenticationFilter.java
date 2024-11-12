@@ -39,6 +39,7 @@ public class JwtAuthenticationFilter implements WebFilter {
                     .flatMap(isBlacklisted -> {
                         if (!isBlacklisted && jwtUtil.validateJwtToken(jwt)) {
                             String userId = jwtUtil.getUserIdFromJwtToken(jwt);
+                            System.out.println("Extracted userId from JWT: " + userId);
                             String username = jwtUtil.getUsernameFromJwtToken(jwt);
                             String role = jwtUtil.getRoleFromJwtToken(jwt);
                             System.out.println("Adding headers in JwtAuthenticationFilter - userId: " + userId + ", role: " + role);

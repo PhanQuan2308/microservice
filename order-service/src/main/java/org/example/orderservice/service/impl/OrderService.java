@@ -1,5 +1,6 @@
 package org.example.orderservice.service.impl;
 
+import org.example.orderservice.dto.AddressDTO;
 import org.example.orderservice.dto.OrderDTO;
 
 import java.util.List;
@@ -10,4 +11,6 @@ public interface OrderService {
     void deleteOrder(Long orderId);
     OrderDTO getOrderById(Long orderId);
     List<OrderDTO> getAllOrders();
+    AddressDTO updateAddress(Long orderId, AddressDTO updatedAddressDTO);
+
 }

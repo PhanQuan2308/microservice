@@ -42,7 +42,7 @@ public class SecurityConfig {
                 }))
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers("/api/v1/orders/getall").hasAuthority("ROLE_ADMIN")
-                        .pathMatchers("/api/v1/orders/**").authenticated()
+                        .pathMatchers("/api/v1/orders/**").permitAll()
                         .pathMatchers("/api/v1/user/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .pathMatchers("/api/v1/products/**").hasAuthority("ROLE_ADMIN")
