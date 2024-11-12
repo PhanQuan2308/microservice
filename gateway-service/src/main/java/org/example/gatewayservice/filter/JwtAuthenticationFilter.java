@@ -41,13 +41,13 @@ public class JwtAuthenticationFilter implements WebFilter {
                             String userId = jwtUtil.getUserIdFromJwtToken(jwt);
                             String username = jwtUtil.getUsernameFromJwtToken(jwt);
                             String role = jwtUtil.getRoleFromJwtToken(jwt);
+                            System.out.println("Adding headers in JwtAuthenticationFilter - userId: " + userId + ", role: " + role);
 
                             ServerWebExchange modifiedExchange = exchange.mutate()
-                                    .request(r -> {
-                                        if (!exchange.getRequest().getHeaders().containsKey("X-User-Id")) {
-                                            r.headers(headers -> headers.add("X-User-Id", userId));
-                                        }
-                                    })
+                                    .request(r -> r.headers(headers -> {
+                                        headers.add("X-User-Id", userId);
+                                        headers.add("X-User-Role", role);
+                                    }))
                                     .build();
 
                             List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));

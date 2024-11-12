@@ -7,17 +7,14 @@ import org.example.productservice.repository.CategoryRepository;
 import org.example.productservice.repository.ProductRepository;
 import org.example.productservice.service.impl.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.data.domain.Pageable;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+
+import java.util.*;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -80,7 +77,7 @@ public class ProductServiceImpl implements ProductService {
 
         if (images != null) {
             for (MultipartFile image : images) {
-                String imageUrl = cloudinaryService.uploadImage(image);
+                String imageUrl = cloudinaryService.uploadImage(image).get("url");
                 imageUrls.add(imageUrl);
             }
         }
@@ -91,45 +88,39 @@ public class ProductServiceImpl implements ProductService {
     }
 
 
-    private String saveImageToServer(MultipartFile image) throws IOException {
-        String fileName = UUID.randomUUID().toString() + "_" + image.getOriginalFilename();
-        Path filePath = Paths.get(uploadDir + fileName);
-        Files.createDirectories(filePath.getParent());
-        Files.write(filePath, image.getBytes());
-        return "/uploads/images/" + fileName;
-    }
-
     @Override
     public ProductDTO updateProductWithImages(Long productId, ProductDTO productDTO, List<MultipartFile> images) throws IOException {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Update product details
+        // Cập nhật chi tiết sản phẩm
         product.setProductName(productDTO.getProductName());
         product.setDescription(productDTO.getDescription());
         product.setPriceInput(productDTO.getPriceInput());
         product.setPrice(productDTO.getPrice());
         product.setQuantity(productDTO.getQuantity());
-        product.setDiscount(productDTO.getDiscount());
+
+        if (productDTO.getDiscount() != null) {
+            product.setDiscount(productDTO.getDiscount());
+        }
+
         product.setStockStatus(productDTO.getStockStatus());
         product.setWeight(productDTO.getWeight());
 
-        // Update category if necessary
         if (productDTO.getCategoryName() != null) {
             Category category = categoryRepository.findCategoryByName(productDTO.getCategoryName())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
             product.setCategory(category);
         }
 
-        // Update images if new images are provided
         if (images != null && !images.isEmpty()) {
             deleteAllImageUrls(productId);
-            List<String> imagePaths = new ArrayList<>();
+            List<String> imageUrls = new ArrayList<>();
             for (MultipartFile file : images) {
-                String imageUrl = cloudinaryService.uploadImage(file);
-                imagePaths.add(imageUrl);
+                String imageUrl = cloudinaryService.uploadImage(file).get("url");
+                imageUrls.add(imageUrl);
             }
-            product.setImagePathsList(imagePaths);
+            product.setImagePathsList(imageUrls);
         }
 
         productRepository.save(product);
@@ -137,35 +128,38 @@ public class ProductServiceImpl implements ProductService {
     }
 
 
+
+
     @Override
     public void updatePartialImageUrls(Long productId, List<String> imageUrlsToDelete, List<MultipartFile> newImages) throws IOException {
-        if ((imageUrlsToDelete == null || imageUrlsToDelete.isEmpty()) &&
-                (newImages == null || newImages.isEmpty())) {
-            return;
-        }
-
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
         List<String> currentPaths = new ArrayList<>(product.getImagePathsList());
-        currentPaths.removeAll(imageUrlsToDelete);
 
-        for (MultipartFile file : newImages) {
-            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            Path filePath = Paths.get(uploadDir + fileName);
-            Files.createDirectories(filePath.getParent());
-            Files.write(filePath, file.getBytes());
-            currentPaths.add("/uploads/images/" + fileName);
+        if (imageUrlsToDelete != null) {
+            for (String url : imageUrlsToDelete) {
+                try {
+                    cloudinaryService.deleteImage(url);
+                    currentPaths.remove(url);
+                } catch (IOException e) {
+                    System.err.println("Error deleting image from Cloudinary: " + e.getMessage());
+                }
+            }
         }
 
-        if (currentPaths.isEmpty()) {
-            product.setImagePathsList(Collections.emptyList());
-        } else {
-            product.setImagePathsList(currentPaths);
+        if (newImages != null) {
+            for (MultipartFile file : newImages) {
+                String imageUrl = cloudinaryService.uploadImage(file).get("url");
+                currentPaths.add(imageUrl);
+            }
         }
 
+        product.setImagePathsList(currentPaths);
         productRepository.save(product);
     }
+
+
 
 
 
@@ -181,35 +175,68 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         List<String> currentUrls = new ArrayList<>(product.getImagePathsList());
-        currentUrls.removeAll(imageUrlsToDelete);
+
+        for (String url : imageUrlsToDelete) {
+            try {
+                cloudinaryService.deleteImage(url);
+                currentUrls.remove(url);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to delete image from Cloudinary: " + url, e);
+            }
+        }
+
         product.setImagePathsList(currentUrls);
         productRepository.save(product);
     }
+
 
     @Override
     public void deleteAllImageUrls(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        product.setImagePaths(null);
+
+        for (String url : product.getImagePathsList()) {
+            try {
+                cloudinaryService.deleteImage(url);
+            } catch (IOException e) {
+                System.err.println("Error deleting image from Cloudinary: " + e.getMessage());
+            }
+        }
+
+        product.setImagePathsList(Collections.emptyList());
         productRepository.save(product);
     }
+
+
 
     @Override
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        try {
+            deleteAllImageUrls(id);
+        } catch (Exception e) {
+            System.err.println("Error deleting all images from Cloudinary for product: " + e.getMessage());
+        }
+
         productRepository.delete(product);
     }
 
+
+
     @Override
-    public List<ProductDTO> getAllProducts() {
-        List<Product> products = productRepository.findAll();
-        List<ProductDTO> productDTOs = new ArrayList<>();
-        for (Product product : products) {
-            productDTOs.add(convertToProductDTO(product));
-        }
-        return productDTOs;
+    public Page<ProductDTO> getAllProducts(Pageable pageable) {
+        // Truy vấn phân trang từ repository
+        Page<Product> productPage = productRepository.findAll(pageable);
+
+        // Chuyển đổi từ Page<Product> sang Page<ProductDTO>
+        return productPage.map(this::convertToProductDTO);  // Chuyển đổi các đối tượng Product thành ProductDTO
     }
+
+
+
+
 
     @Override
     public ProductDTO getProductById(Long id) {

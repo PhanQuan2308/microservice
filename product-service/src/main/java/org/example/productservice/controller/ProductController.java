@@ -3,11 +3,12 @@ package org.example.productservice.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.productservice.dto.ProductDTO;
-import org.example.productservice.service.CloudinaryService;
 import org.example.productservice.service.impl.ProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,10 +24,8 @@ public class ProductController {
     private static final Logger logger = LoggerFactory.getLogger(ProductController.class);
 
     @Autowired
-    private CloudinaryService cloudinaryService;
-
-    @Autowired
     private ProductService productService;
+
 
     @PostMapping("/with-images")
     public ResponseEntity<ProductDTO> createProductWithImages(
@@ -42,21 +41,19 @@ public class ProductController {
         }
     }
 
-    @PostMapping("/upload-test")
-    public ResponseEntity<String> testUploadImage(@RequestParam("image") MultipartFile image) {
-        try {
-            String imageUrl = cloudinaryService.uploadImage(image);
-            return ResponseEntity.ok("Image uploaded successfully: " + imageUrl);
-        } catch (IOException e) {
-            return ResponseEntity.status(500).body("Error uploading image: " + e.getMessage());
-        }
-    }
+
 
     @GetMapping
-    public ResponseEntity<List<ProductDTO>> getAllProducts() {
-        List<ProductDTO> products = productService.getAllProducts();
-        return ResponseEntity.ok(products);
+    public ResponseEntity<Page<ProductDTO>> getAllProducts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ProductDTO> productsPage = productService.getAllProducts(pageable);
+        return ResponseEntity.ok(productsPage);
     }
+
+
+
 
     @GetMapping("/{id}")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
@@ -100,11 +97,23 @@ public class ProductController {
         productService.deleteAllImageUrls(productId);
         return ResponseEntity.noContent().build();
     }
-
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
+    }
+    @PutMapping("/{productId}/with-images")
+    public ResponseEntity<ProductDTO> updateProductWithImages(
+            @PathVariable Long productId,
+            @ModelAttribute ProductDTO productDTO,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
+        try {
+            ProductDTO updatedProduct = productService.updateProductWithImages(productId, productDTO, images);
+            return ResponseEntity.ok(updatedProduct);
+        } catch (IOException e) {
+            logger.error("Error updating product with images", e);
+            return ResponseEntity.status(500).build();
+        }
     }
 
 }

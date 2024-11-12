@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -43,7 +44,8 @@ public class SecurityConfig {
                         .pathMatchers("/api/v1/orders/getall").hasAuthority("ROLE_ADMIN")
                         .pathMatchers("/api/v1/orders/**").authenticated()
                         .pathMatchers("/api/v1/user/**").permitAll()
-                        .pathMatchers("/api/v1/products/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
+                        .pathMatchers("/api/v1/products/**").hasAuthority("ROLE_ADMIN")
                         .pathMatchers("/api/v1/payments/**").permitAll()
                         .pathMatchers("/api/v1/categories/**").permitAll()
                         .pathMatchers("/uploads/images/**").permitAll()

@@ -21,7 +21,10 @@ public class Product {
     private BigDecimal priceInput;
     private BigDecimal price;
     private Integer quantity;
+
+    @Column(nullable = true)
     private Integer discount;
+
     private String stockStatus;
     private String weight;
 
