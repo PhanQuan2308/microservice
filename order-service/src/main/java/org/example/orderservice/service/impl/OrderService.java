@@ -13,4 +13,6 @@ public interface OrderService {
     List<OrderDTO> getAllOrders();
     AddressDTO updateAddress(Long orderId, AddressDTO updatedAddressDTO);
 
+    String initiatePayment(OrderDTO orderDTO);
+    OrderDTO createOrderAfterPayment(OrderDTO orderDTO, String token);
 }

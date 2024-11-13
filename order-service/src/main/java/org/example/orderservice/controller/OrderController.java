@@ -1,8 +1,11 @@
 package org.example.orderservice.controller;
 
+import org.example.orderservice.client.PaymentServiceClient;
 import org.example.orderservice.dto.AddressDTO;
 import org.example.orderservice.dto.OrderDTO;
 import org.example.orderservice.service.OrderServiceImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +19,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("api/v1/orders")
 public class OrderController {
+    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
 
     @Autowired
     private OrderServiceImpl orderService;
+
+    @Autowired
+    private PaymentServiceClient paymentServiceClient;
 
     @PostMapping("/create")
     public ResponseEntity<Map<String, Object>> createOrder(@RequestBody OrderDTO orderDTO) {
@@ -27,16 +34,37 @@ public class OrderController {
         orderDTO.setUserId(Long.parseLong(userId));
 
         OrderDTO createdOrder = orderService.createOrder(orderDTO);
-        String paymentUrl = createdOrder.getPaymentUrl();
 
         Map<String, Object> response = new HashMap<>();
         response.put("order", createdOrder);
-        if (paymentUrl != null) {
-            response.put("paymentUrl", paymentUrl);
-        }
 
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
+    @PostMapping("/initiate-payment")
+    public ResponseEntity<Map<String, String>> initiatePayment(@RequestBody OrderDTO orderDTO) {
+        String paymentUrl = orderService.initiatePayment(orderDTO);
+        Map<String, String> response = new HashMap<>();
+        response.put("paymentUrl", paymentUrl);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/create-after-payment")
+    public ResponseEntity<OrderDTO> createOrderAfterPayment(
+            @RequestBody OrderDTO orderDTO,
+            @RequestHeader("PayPal-Token") String token) {
+
+
+        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        orderDTO.setUserId(Long.parseLong(userId));
+
+        OrderDTO createdOrder = orderService.createOrderAfterPayment(orderDTO, token);
+
+        return ResponseEntity.status(HttpStatus.OK).body(createdOrder);
+    }
+
+
+
+
 
     @GetMapping("/getall")
     public ResponseEntity<List<OrderDTO>> getAllOrders() {

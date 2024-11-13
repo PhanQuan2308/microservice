@@ -1,10 +1,8 @@
 package org.example.orderservice.service;
 
+import org.example.orderservice.client.PaymentServiceClient;
 import org.example.orderservice.client.ProductServiceClient;
-import org.example.orderservice.dto.AddressDTO;
-import org.example.orderservice.dto.OrderDTO;
-import org.example.orderservice.dto.OrderDetailsDTO;
-import org.example.orderservice.dto.ProductDTO;
+import org.example.orderservice.dto.*;
 import org.example.orderservice.entity.Address;
 import org.example.orderservice.entity.Order;
 import org.example.orderservice.entity.OrderDetail;
@@ -12,13 +10,13 @@ import org.example.orderservice.producer.OrderProducer;
 import org.example.orderservice.repository.OrderRepository;
 import org.example.orderservice.repository.OrderDetailRepository;
 import org.example.orderservice.service.impl.OrderService;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-
+import org.slf4j.Logger;
 import java.util.List;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +33,11 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private OrderProducer orderProducer;
+
+    @Autowired
+    private PaymentServiceClient paymentServiceClient;
+
+    private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
 
     @Autowired
@@ -125,6 +128,8 @@ public class OrderServiceImpl implements OrderService {
         return order;
     }
 
+
+
     @Override
     public OrderDTO createOrder(OrderDTO orderDTO) {
         Order order = convertToOrderEntity(orderDTO);
@@ -140,12 +145,8 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
         orderDetailRepository.saveAll(order.getOrderDetails());
 
-        double amount = orderDTO.getTotalAmount();
-        String paymentServiceUrl = "http://localhost:8080/api/v1/payments/paypal?amount=" + amount;
-        String paymentUrl = restTemplate.getForObject(paymentServiceUrl, String.class);
 
         OrderDTO createdOrderDTO = convertToOrderDTO(savedOrder);
-        createdOrderDTO.setPaymentUrl(paymentUrl);
         return createdOrderDTO;
     }
 
@@ -230,4 +231,56 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.save(existOrderId);
         return convertToDTO(existingAddress);
     }
+
+    @Override
+    public String initiatePayment(OrderDTO orderDTO) {
+        double totalAmount = calculateTotalAmount(orderDTO);
+        String paymentUrl = paymentServiceClient.createPayPalPayment(totalAmount);
+        return paymentUrl;
+    }
+
+    public double calculateTotalAmount(OrderDTO orderDTO) {
+        double subTotal = orderDTO.getOrderDetails().stream()
+                .mapToDouble(detail->detail.getPrice() * detail.getQuantity())
+                .sum();
+        return subTotal + orderDTO.getShippingFee();
+    }
+
+    @Override
+    public OrderDTO createOrderAfterPayment(OrderDTO orderDTO, String token) {
+        try {
+            boolean isPaymentVerified = paymentServiceClient.verifyPayment(token, calculateTotalAmount(orderDTO));
+
+
+            if (isPaymentVerified) {
+                logger.info("Payment verified successfully, creating order...");
+
+                Order order = convertToOrderEntity(orderDTO);
+                order.setStatus("COMPLETED");
+                order.setTotalAmount(calculateTotalAmount(orderDTO));
+
+                Order savedOrder = orderRepository.save(order);
+                orderDetailRepository.saveAll(order.getOrderDetails());
+
+                OrderDTO result = convertToOrderDTO(savedOrder);
+
+                PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
+                paymentRequestDTO.setOrderId(savedOrder.getOrderId());
+                paymentRequestDTO.setAmount(result.getTotalAmount());
+                paymentRequestDTO.setStatus("COMPLETED");
+                paymentRequestDTO.setUserId(orderDTO.getUserId());
+                paymentRequestDTO.setPaymentMethod("PAYPAL");
+                paymentServiceClient.createPayment(paymentRequestDTO);
+
+                return result;
+            } else {
+                logger.error("Payment not verified for token: " + token);
+                throw new RuntimeException("Payment not verified");
+            }
+        } catch (Exception e) {
+            logger.error("An error occurred in createOrderAfterPayment: " + e.getMessage(), e);
+            throw e;
+        }
+    }
+
 }

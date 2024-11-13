@@ -1,4 +1,8 @@
 package org.example.paymentservice.client;
 
-public class OrderServiceClient {
+import org.springframework.cloud.openfeign.FeignClient;
+
+@FeignClient(name = "order-service")
+public interface OrderServiceClient {
+
 }

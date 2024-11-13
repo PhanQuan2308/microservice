@@ -117,7 +117,7 @@ public class PayPalService {
                 String status = rootNode.path("status").asText();
                 Double paidAmount = rootNode.path("purchase_units").get(0).path("amount").path("value").asDouble();
 
-                // Nếu trạng thái là "APPROVED", thực hiện xác nhận thanh toán
+                // Nếu trạng thái là "COMPLETED", thực hiện xác nhận thanh toán
                 if ("APPROVED".equalsIgnoreCase(status) && amount.equals(paidAmount)) {
                     String captureUrl = rootNode.path("links").get(2).path("href").asText();
                     HttpEntity<String> captureEntity = new HttpEntity<>(headers);
@@ -130,6 +130,7 @@ public class PayPalService {
                         return "COMPLETED".equalsIgnoreCase(captureStatus);
                     }
                 }
+
             }
         } catch (Exception e) {
             e.printStackTrace();

@@ -18,19 +18,9 @@ public class Payment {
     private Long paymentId;
 
     private Long orderId;
-
+    private Long userId;
     private Date paymentDate;
     private Double amount;
-
     private String status;
-
-    private String transactionId;
-    private String vnpayStatus;
-    private String vnpayMessage;
-
-
-
-
-
-
+    private String paymentMethod;
 }

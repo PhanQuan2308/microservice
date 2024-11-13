@@ -1,27 +1,26 @@
 package org.example.paymentservice.controller;
 
+import org.example.paymentservice.dto.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.service.PayPalService;
-import org.example.paymentservice.service.PaymentService;
+import org.example.paymentservice.service.PaymentServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
 
-    private final PaymentService paymentService;
+    private final PaymentServiceImpl paymentService;
     private final PayPalService payPalService;
 
     @Autowired
-    public PaymentController(PaymentService paymentService, PayPalService payPalService) {
+    public PaymentController(PaymentServiceImpl paymentService, PayPalService payPalService) {
         this.paymentService = paymentService;
         this.payPalService = payPalService;
     }
@@ -39,7 +38,15 @@ public class PaymentController {
         }
     }
 
-
+    @GetMapping("/verify")
+    public ResponseEntity<Boolean> verifyPayment(@RequestParam String token,@RequestParam Double amount) {
+        boolean isVerified = payPalService.verifyPaymentStatus(token, amount);
+        if (isVerified) {
+            return ResponseEntity.ok(true);
+        }else {
+            return ResponseEntity.ok(false);
+        }
+    }
 
     @GetMapping("/paypal-return")
     public ResponseEntity<String> handlePayPalReturn(@RequestParam String token) {
@@ -53,7 +60,11 @@ public class PaymentController {
         return ResponseEntity.ok("Payment Canceled");
     }
 
-
+    @PostMapping
+    public ResponseEntity<Payment> createPayment(@RequestBody PaymentRequestDTO paymentRequestDTO) {
+        Payment payment = paymentService.createPayment(paymentRequestDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(payment);
+    }
 
 
     @GetMapping

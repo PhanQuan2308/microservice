@@ -16,7 +16,6 @@ public class OrderDTO {
     private Double shippingFee;
     private Double totalAmount;
     private List<OrderDetailsDTO> orderDetails;
-    private String paymentUrl;
-    private String paymentToken;
+
     private AddressDTO address;
 }
