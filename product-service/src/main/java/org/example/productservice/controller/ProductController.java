@@ -2,6 +2,7 @@ package org.example.productservice.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Valid;
 import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.service.impl.ProductService;
 import org.slf4j.Logger;
@@ -29,7 +30,7 @@ public class ProductController {
 
     @PostMapping("/with-images")
     public ResponseEntity<ProductDTO> createProductWithImages(
-            @ModelAttribute ProductDTO productDTO,
+            @Valid @ModelAttribute ProductDTO productDTO,
             @RequestParam(value = "images", required = false) List<MultipartFile> images) {
         try {
             if (images == null) images = new ArrayList<>();
@@ -105,7 +106,7 @@ public class ProductController {
     @PutMapping("/{productId}/with-images")
     public ResponseEntity<ProductDTO> updateProductWithImages(
             @PathVariable Long productId,
-            @ModelAttribute ProductDTO productDTO,
+            @Valid  @ModelAttribute ProductDTO productDTO,
             @RequestParam(value = "images", required = false) List<MultipartFile> images) {
         try {
             ProductDTO updatedProduct = productService.updateProductWithImages(productId, productDTO, images);
