@@ -3,7 +3,7 @@ package org.example.paymentservice.controller;
 import org.example.paymentservice.dto.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.service.PayPalService;
-import org.example.paymentservice.service.PaymentServiceImpl;
+import org.example.paymentservice.service.impl.PaymentServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

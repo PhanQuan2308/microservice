@@ -1,4 +1,4 @@
-package org.example.orderservice.service.impl;
+package org.example.orderservice.service;
 
 import org.example.orderservice.entity.OrderDetail;
 import java.util.List;

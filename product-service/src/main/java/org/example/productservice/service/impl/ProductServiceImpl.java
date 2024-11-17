@@ -1,14 +1,16 @@
-package org.example.productservice.service;
+package org.example.productservice.service.impl;
 
 import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.entity.Category;
 import org.example.productservice.entity.Product;
 import org.example.productservice.repository.CategoryRepository;
 import org.example.productservice.repository.ProductRepository;
-import org.example.productservice.service.impl.ProductService;
+import org.example.productservice.service.CloudinaryService;
+import org.example.productservice.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.data.domain.Pageable;
@@ -206,6 +208,18 @@ public class ProductServiceImpl implements ProductService {
         productRepository.save(product);
     }
 
+    @Override
+    @Transactional
+    public void reduceStock(Long productId, Integer quantity) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        if(product.getQuantity() < quantity){
+            throw new RuntimeException( productId + "Not enough quantity stock");
+        }
+
+        product.setQuantity(product.getQuantity() - quantity);
+        productRepository.save(product);
+    }
 
 
     @Override

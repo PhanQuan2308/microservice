@@ -18,7 +18,6 @@ import java.util.List;
 @Configuration
 @EnableWebFluxSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
-
 public class SecurityConfig {
 
 

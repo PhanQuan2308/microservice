@@ -1,8 +1,8 @@
-package org.example.orderservice.service;
+package org.example.orderservice.service.impl;
 
 import org.example.orderservice.entity.OrderDetail;
 import org.example.orderservice.repository.OrderDetailRepository;
-import org.example.orderservice.service.impl.OrderDetailService;
+import org.example.orderservice.service.OrderDetailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

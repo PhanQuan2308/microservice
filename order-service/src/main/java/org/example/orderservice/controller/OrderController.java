@@ -3,7 +3,9 @@ package org.example.orderservice.controller;
 import org.example.orderservice.client.PaymentServiceClient;
 import org.example.orderservice.dto.AddressDTO;
 import org.example.orderservice.dto.OrderDTO;
-import org.example.orderservice.service.OrderServiceImpl;
+
+import org.example.orderservice.dto.PaymentCallbackDTO;
+import org.example.orderservice.service.impl.OrderServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,18 +30,37 @@ public class OrderController {
     private PaymentServiceClient paymentServiceClient;
 
     @PostMapping("/create")
-    public ResponseEntity<Map<String, Object>> createOrder(@RequestBody OrderDTO orderDTO) {
-        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        System.out.printf("userId = %s", userId);
-        orderDTO.setUserId(Long.parseLong(userId));
+    public ResponseEntity<OrderDTO> createOrder(@RequestBody OrderDTO orderDTO) {
+        try {
+            String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            orderDTO.setUserId(Long.parseLong(userId));
 
-        OrderDTO createdOrder = orderService.createOrder(orderDTO);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("order", createdOrder);
-
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+            OrderDTO createdOrder = orderService.createOrder(orderDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdOrder);
+        } catch (Exception e) {
+            logger.error("Error creating order: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
+
+
+    @PostMapping("/payment-callback")
+    public ResponseEntity<String> handlePaymentCallback(@RequestBody PaymentCallbackDTO paymentCallbackDTO) {
+        String token = paymentCallbackDTO.getToken();
+        Boolean isPaymentSuccessful = paymentCallbackDTO.getIsPaymentSuccessful();
+        logger.info("Received callback: token={}, isPaymentSuccessful={}", token, isPaymentSuccessful);
+        try {
+            orderService.handlePaymentCallback(token, isPaymentSuccessful);
+            return ResponseEntity.ok("Payment callback handled successfully.");
+        } catch (Exception e) {
+            logger.error("Error in payment callback: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+
+
+
     @PostMapping("/initiate-payment")
     public ResponseEntity<Map<String, String>> initiatePayment(@RequestBody OrderDTO orderDTO) {
         String paymentUrl = orderService.initiatePayment(orderDTO);
@@ -48,19 +69,7 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/create-after-payment")
-    public ResponseEntity<OrderDTO> createOrderAfterPayment(
-            @RequestBody OrderDTO orderDTO,
-            @RequestHeader("PayPal-Token") String token) {
 
-
-        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        orderDTO.setUserId(Long.parseLong(userId));
-
-        OrderDTO createdOrder = orderService.createOrderAfterPayment(orderDTO, token);
-
-        return ResponseEntity.status(HttpStatus.OK).body(createdOrder);
-    }
 
 
 

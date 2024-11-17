@@ -1,4 +1,4 @@
-package org.example.paymentservice.service.impl;
+package org.example.paymentservice.service;
 
 import org.example.paymentservice.dto.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;

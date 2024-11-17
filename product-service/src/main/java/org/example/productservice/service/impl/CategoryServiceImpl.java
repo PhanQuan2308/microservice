@@ -1,8 +1,8 @@
-package org.example.productservice.service;
+package org.example.productservice.service.impl;
 
 import org.example.productservice.entity.Category;
 import org.example.productservice.repository.CategoryRepository;
-import org.example.productservice.service.impl.CategoryService;
+import org.example.productservice.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

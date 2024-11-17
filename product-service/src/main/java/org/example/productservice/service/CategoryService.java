@@ -1,7 +1,6 @@
-package org.example.productservice.service.impl;
+package org.example.productservice.service;
 
 import org.example.productservice.entity.Category;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 

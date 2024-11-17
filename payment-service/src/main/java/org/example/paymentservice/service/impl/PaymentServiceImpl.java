@@ -1,9 +1,10 @@
-package org.example.paymentservice.service;
+package org.example.paymentservice.service.impl;
 
 import org.example.paymentservice.dto.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.repository.PaymentRepository;
-import org.example.paymentservice.service.impl.PaymentService;
+import org.example.paymentservice.service.PayPalService;
+import org.example.paymentservice.service.PaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

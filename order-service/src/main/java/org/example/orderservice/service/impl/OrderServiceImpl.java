@@ -1,4 +1,4 @@
-package org.example.orderservice.service;
+package org.example.orderservice.service.impl;
 
 import org.example.orderservice.client.PaymentServiceClient;
 import org.example.orderservice.client.ProductServiceClient;
@@ -9,7 +9,7 @@ import org.example.orderservice.entity.OrderDetail;
 import org.example.orderservice.producer.OrderProducer;
 import org.example.orderservice.repository.OrderRepository;
 import org.example.orderservice.repository.OrderDetailRepository;
-import org.example.orderservice.service.impl.OrderService;
+import org.example.orderservice.service.OrderService;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -74,6 +74,7 @@ public class OrderServiceImpl implements OrderService {
         orderDTO.setTotalAmount(order.getTotalAmount());
         orderDTO.setUserId(order.getUserId());
         orderDTO.setShippingFee(order.getShippingFee());
+        orderDTO.setPaymentToken(order.getPaymentToken());
         orderDTO.setAddress(convertToDTO(order.getAddress()));
 
         List<OrderDetailsDTO> orderDetailDTOs = order.getOrderDetails().stream().map(detail -> {
@@ -87,8 +88,9 @@ public class OrderServiceImpl implements OrderService {
                 ProductDTO productDTO = productServiceClient.getProductById(detail.getProductId());
                 detailsDTO.setProductName(productDTO.getProductName());
                 detailsDTO.setProduct(productDTO);
-            } catch (RuntimeException e) {
-                System.err.println("Product not found for productId " + detail.getProductId() + ": " + e.getMessage());
+                logger.info("Product fetched successfully for productId: {}", detail.getProductId());
+            } catch (Exception e) {
+                logger.error("Failed to fetch product details for productId: {}", detail.getProductId(), e);
                 detailsDTO.setProductName("Unknown Product");
                 detailsDTO.setProduct(null);
             }
@@ -116,6 +118,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         List<OrderDetail> orderDetails = orderDTO.getOrderDetails().stream().map(detailDTO -> {
+            logger.info("Converting OrderDetail with productId: {}", detailDTO.getProductId());
             OrderDetail detail = new OrderDetail();
             detail.setProductId(detailDTO.getProductId());
             detail.setQuantity(detailDTO.getQuantity());
@@ -131,23 +134,105 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
+    @Transactional
     public OrderDTO createOrder(OrderDTO orderDTO) {
-        Order order = convertToOrderEntity(orderDTO);
-        order.setStatus("PENDING");
-        if (order.getShippingFee() == null) {
-            order.setShippingFee(10.0);
+        try {
+            Order order = convertToOrderEntity(orderDTO);
+            order.setStatus("PENDING");
+
+            double subtotal = orderDTO.getOrderDetails().stream()
+                    .mapToDouble(detail -> detail.getPrice() * detail.getQuantity())
+                    .sum();
+            double totalAmount = subtotal + order.getShippingFee();
+            order.setTotalAmount(totalAmount);
+
+            Order savedOrder = orderRepository.save(order);
+            orderDetailRepository.saveAll(order.getOrderDetails());
+
+            try {
+                String paymentUrl = paymentServiceClient.createPayPalPayment(totalAmount);
+                String paymentToken = extractTokenFromUrl(paymentUrl);
+                logger.info("Extracted Payment Token: {}", paymentToken);
+
+                savedOrder.setPaymentToken(paymentToken);
+                orderRepository.save(savedOrder);
+
+                logger.info("Payment initiated for Order ID: {}. Redirect to: {}", savedOrder.getOrderId(), paymentUrl);
+
+                OrderDTO responseDTO = convertToOrderDTO(savedOrder);
+                responseDTO.setPaymentUrl(paymentUrl);
+                return responseDTO;
+
+            } catch (Exception e) {
+                savedOrder.setStatus("FAILED");
+                orderRepository.save(savedOrder);
+                logger.error("Payment initiation failed for Order ID: {}", savedOrder.getOrderId(), e);
+                throw new RuntimeException("Failed to initiate payment for Order ID: " + savedOrder.getOrderId());
+            }
+        } catch (Exception e) {
+            logger.error("Error in createOrder: ", e);
+            throw new RuntimeException("Failed to create order: " + e.getMessage());
         }
-        double subtotal = orderDTO.getOrderDetails().stream()
-                .mapToDouble(detail -> detail.getPrice() * detail.getQuantity())
-                .sum();
-        double totalAmount = subtotal + order.getShippingFee();
-        order.setTotalAmount(totalAmount);
-        Order savedOrder = orderRepository.save(order);
-        orderDetailRepository.saveAll(order.getOrderDetails());
+    }
+
+    private String extractTokenFromUrl(String paymentUrl) {
+        logger.info("Extracting token from URL: {}", paymentUrl);
+        if (paymentUrl != null && paymentUrl.contains("token=")) {
+            String[] parts = paymentUrl.split("token=");
+            if (parts.length > 1) {
+                String token = parts[1].split("&")[0];
+                logger.info("Extracted token: {}", token);
+                return token;
+            }
+        }
+        logger.warn("No token found in URL: {}", paymentUrl);
+        return null;
+    }
 
 
-        OrderDTO createdOrderDTO = convertToOrderDTO(savedOrder);
-        return createdOrderDTO;
+
+
+    @Override
+    @Transactional
+    public void handlePaymentCallback(String token, boolean isPaymentSuccessful) {
+        logger.info("Handling payment callback. Token: {}, isPaymentSuccessful: {}", token, isPaymentSuccessful);
+        Order order = orderRepository.findByPaymentToken(token)
+                .orElseThrow(() -> new RuntimeException("Order not found for token: " + token));
+
+        try {
+            if (isPaymentSuccessful) {
+                logger.info("Payment successful. Updating order status to COMPLETED for Order ID: {}", order.getOrderId());
+                order.setStatus("COMPLETED");
+                orderRepository.save(order);
+
+                PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
+                paymentRequestDTO.setOrderId(order.getOrderId());
+                paymentRequestDTO.setAmount(order.getTotalAmount());
+                paymentRequestDTO.setStatus("COMPLETED");
+                paymentRequestDTO.setUserId(order.getUserId());
+                paymentRequestDTO.setPaymentMethod("PAYPAL");
+
+                paymentServiceClient.createPayment(paymentRequestDTO);
+
+                for (OrderDetail detail : order.getOrderDetails()) {
+                    try {
+                        productServiceClient.reduceStock(detail.getProductId(), detail.getQuantity());
+                        logger.info("Stock reduced successfully for Product ID: {}", detail.getProductId());
+                    } catch (Exception e) {
+                        logger.error("Failed to reduce stock for Product ID: {}", detail.getProductId(), e);
+                    }
+                }
+
+                logger.info("Payment and stock reduction completed for Order ID: {}", order.getOrderId());
+            } else {
+                order.setStatus("FAILED");
+                orderRepository.save(order);
+                logger.error("Payment failed for Order ID: {}", order.getOrderId());
+            }
+        } catch (Exception e) {
+            logger.error("Error in handlePaymentCallback for Order ID: {}", order.getOrderId(), e);
+            throw new RuntimeException("Error handling payment callback for Order ID: " + order.getOrderId());
+        }
     }
 
 
@@ -159,15 +244,7 @@ public class OrderServiceImpl implements OrderService {
         Order existingOrder = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        if (updatedOrderDTO.getStatus() != null) {
-            existingOrder.setStatus(updatedOrderDTO.getStatus());
-        }
-        if (updatedOrderDTO.getTotalAmount() != null) {
-            existingOrder.setTotalAmount(updatedOrderDTO.getTotalAmount());
-        }
-        if (updatedOrderDTO.getUserId() != null) {
-            existingOrder.setUserId(updatedOrderDTO.getUserId());
-        }
+
 
         if (updatedOrderDTO.getOrderDetails() != null) {
             orderDetailRepository.deleteByOrder_OrderId(orderId);
@@ -246,41 +323,6 @@ public class OrderServiceImpl implements OrderService {
         return subTotal + orderDTO.getShippingFee();
     }
 
-    @Override
-    public OrderDTO createOrderAfterPayment(OrderDTO orderDTO, String token) {
-        try {
-            boolean isPaymentVerified = paymentServiceClient.verifyPayment(token, calculateTotalAmount(orderDTO));
 
-
-            if (isPaymentVerified) {
-                logger.info("Payment verified successfully, creating order...");
-
-                Order order = convertToOrderEntity(orderDTO);
-                order.setStatus("COMPLETED");
-                order.setTotalAmount(calculateTotalAmount(orderDTO));
-
-                Order savedOrder = orderRepository.save(order);
-                orderDetailRepository.saveAll(order.getOrderDetails());
-
-                OrderDTO result = convertToOrderDTO(savedOrder);
-
-                PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
-                paymentRequestDTO.setOrderId(savedOrder.getOrderId());
-                paymentRequestDTO.setAmount(result.getTotalAmount());
-                paymentRequestDTO.setStatus("COMPLETED");
-                paymentRequestDTO.setUserId(orderDTO.getUserId());
-                paymentRequestDTO.setPaymentMethod("PAYPAL");
-                paymentServiceClient.createPayment(paymentRequestDTO);
-
-                return result;
-            } else {
-                logger.error("Payment not verified for token: " + token);
-                throw new RuntimeException("Payment not verified");
-            }
-        } catch (Exception e) {
-            logger.error("An error occurred in createOrderAfterPayment: " + e.getMessage(), e);
-            throw e;
-        }
-    }
 
 }

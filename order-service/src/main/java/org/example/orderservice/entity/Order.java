@@ -26,6 +26,9 @@ public class Order {
     private Double shippingFee = 10.0;
     private Double totalAmount;
 
+    @Column(unique = true)
+    private String paymentToken;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference
     private List<OrderDetail> orderDetails;

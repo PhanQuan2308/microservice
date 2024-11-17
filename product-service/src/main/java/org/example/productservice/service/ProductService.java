@@ -1,4 +1,4 @@
-package org.example.productservice.service.impl;
+package org.example.productservice.service;
 
 import org.example.productservice.dto.ProductDTO;
 import org.springframework.data.domain.Page;
@@ -25,4 +25,6 @@ public interface ProductService {
     void deleteImageUrls(Long productId, List<String> imageUrlsToDelete);
 
     void deleteAllImageUrls(Long productId);
+
+    void reduceStock(Long productId, Integer quantity);
 }

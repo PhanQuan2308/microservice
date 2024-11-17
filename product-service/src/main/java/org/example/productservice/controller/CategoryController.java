@@ -1,7 +1,7 @@
 package org.example.productservice.controller;
 
 import org.example.productservice.entity.Category;
-import org.example.productservice.service.impl.CategoryService;
+import org.example.productservice.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
