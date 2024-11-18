@@ -39,6 +39,8 @@ public class OrderServiceImpl implements OrderService {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
+    @Autowired
+    private EmailService emailService;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -152,40 +154,49 @@ public class OrderServiceImpl implements OrderService {
             try {
                 String paymentUrl = paymentServiceClient.createPayPalPayment(totalAmount);
                 String paymentToken = extractTokenFromUrl(paymentUrl);
-                logger.info("Extracted Payment Token: {}", paymentToken);
 
                 savedOrder.setPaymentToken(paymentToken);
                 orderRepository.save(savedOrder);
 
-                logger.info("Payment initiated for Order ID: {}. Redirect to: {}", savedOrder.getOrderId(), paymentUrl);
+                logger.info("Sending email to {}", orderDTO.getAddress().getRecipientEmail());
+                emailService.sendEmail(
+                        orderDTO.getAddress().getRecipientEmail(),
+                        "Order Created Successfully",
+                        "Your order has been created successfully. Total amount: " + totalAmount
+                );
+                logger.info("Email sent successfully to {}", orderDTO.getAddress().getRecipientEmail());
+
 
                 OrderDTO responseDTO = convertToOrderDTO(savedOrder);
                 responseDTO.setPaymentUrl(paymentUrl);
                 return responseDTO;
 
+
+
+
             } catch (Exception e) {
                 savedOrder.setStatus("FAILED");
                 orderRepository.save(savedOrder);
-                logger.error("Payment initiation failed for Order ID: {}", savedOrder.getOrderId(), e);
+                emailService.sendEmail(
+                        orderDTO.getAddress().getRecipientEmail(),
+                        "Order Creation Failed",
+                        "An error occurred while creating your order: " + e.getMessage()
+                );
                 throw new RuntimeException("Failed to initiate payment for Order ID: " + savedOrder.getOrderId());
             }
         } catch (Exception e) {
-            logger.error("Error in createOrder: ", e);
             throw new RuntimeException("Failed to create order: " + e.getMessage());
         }
     }
 
     private String extractTokenFromUrl(String paymentUrl) {
-        logger.info("Extracting token from URL: {}", paymentUrl);
         if (paymentUrl != null && paymentUrl.contains("token=")) {
             String[] parts = paymentUrl.split("token=");
             if (parts.length > 1) {
                 String token = parts[1].split("&")[0];
-                logger.info("Extracted token: {}", token);
                 return token;
             }
         }
-        logger.warn("No token found in URL: {}", paymentUrl);
         return null;
     }
 
@@ -194,49 +205,59 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public void handlePaymentCallback(String token, boolean isPaymentSuccessful) {
-        logger.info("Handling payment callback. Token: {}, isPaymentSuccessful: {}", token, isPaymentSuccessful);
+    public Long handlePaymentCallback(String token, boolean isPaymentSuccessful) {
+        logger.info("Handling payment callback with token: {}, success: {}", token, isPaymentSuccessful);
+
         Order order = orderRepository.findByPaymentToken(token)
                 .orElseThrow(() -> new RuntimeException("Order not found for token: " + token));
 
-        try {
-            if (isPaymentSuccessful) {
-                logger.info("Payment successful. Updating order status to COMPLETED for Order ID: {}", order.getOrderId());
-                order.setStatus("COMPLETED");
-                orderRepository.save(order);
+        if (isPaymentSuccessful) {
+            logger.info("Payment successful. Updating order ID: {} to COMPLETED", order.getOrderId());
+            order.setStatus("COMPLETED");
+            orderRepository.save(order);
 
-                PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
-                paymentRequestDTO.setOrderId(order.getOrderId());
-                paymentRequestDTO.setAmount(order.getTotalAmount());
-                paymentRequestDTO.setStatus("COMPLETED");
-                paymentRequestDTO.setUserId(order.getUserId());
-                paymentRequestDTO.setPaymentMethod("PAYPAL");
+            PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
+            paymentRequestDTO.setOrderId(order.getOrderId());
+            paymentRequestDTO.setAmount(order.getTotalAmount());
+            paymentRequestDTO.setStatus("COMPLETED");
+            paymentRequestDTO.setUserId(order.getUserId());
+            paymentRequestDTO.setPaymentMethod("PAYPAL");
 
+            try {
                 paymentServiceClient.createPayment(paymentRequestDTO);
-
-                for (OrderDetail detail : order.getOrderDetails()) {
-                    try {
-                        productServiceClient.reduceStock(detail.getProductId(), detail.getQuantity());
-                        logger.info("Stock reduced successfully for Product ID: {}", detail.getProductId());
-                    } catch (Exception e) {
-                        logger.error("Failed to reduce stock for Product ID: {}", detail.getProductId(), e);
-                    }
-                }
-
-                logger.info("Payment and stock reduction completed for Order ID: {}", order.getOrderId());
-            } else {
-                order.setStatus("FAILED");
-                orderRepository.save(order);
-                logger.error("Payment failed for Order ID: {}", order.getOrderId());
+                logger.info("Payment created successfully for order ID: {}", order.getOrderId());
+            } catch (Exception e) {
+                logger.error("Failed to create payment for order ID: {}", order.getOrderId(), e);
             }
-        } catch (Exception e) {
-            logger.error("Error in handlePaymentCallback for Order ID: {}", order.getOrderId(), e);
-            throw new RuntimeException("Error handling payment callback for Order ID: " + order.getOrderId());
+
+            for (OrderDetail detail : order.getOrderDetails()) {
+                try {
+                    productServiceClient.reduceStock(detail.getProductId(), detail.getQuantity());
+                    logger.info("Stock reduced for Product ID: {}", detail.getProductId());
+                } catch (Exception e) {
+                    logger.error("Failed to reduce stock for Product ID: {}", detail.getProductId(), e);
+                }
+            }
+
+            emailService.sendEmail(
+                    order.getAddress().getRecipientEmail(),
+                    "Payment Successful",
+                    "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
+            );
+
+        } else {
+            logger.info("Payment failed. Updating order ID: {} to FAILED", order.getOrderId());
+            order.setStatus("FAILED");
+            orderRepository.save(order);
+            emailService.sendEmail(
+                    order.getAddress().getRecipientEmail(),
+                    "Payment Failed",
+                    "Your payment for Order ID " + order.getOrderId() + " has failed. Please try again."
+            );
         }
+
+        return order.getOrderId();
     }
-
-
-
 
     @Override
     @Transactional

@@ -2,10 +2,7 @@
 
     import org.example.orderservice.dto.PaymentRequestDTO;
     import org.springframework.cloud.openfeign.FeignClient;
-    import org.springframework.web.bind.annotation.GetMapping;
-    import org.springframework.web.bind.annotation.PostMapping;
-    import org.springframework.web.bind.annotation.RequestBody;
-    import org.springframework.web.bind.annotation.RequestParam;
+    import org.springframework.web.bind.annotation.*;
 
     @FeignClient(name = "payment-service")
     public interface PaymentServiceClient {
@@ -18,4 +15,6 @@
         @PostMapping("api/v1/payments")
         void createPayment(@RequestBody PaymentRequestDTO paymentRequestDTO);
 
+        @PutMapping("/api/v1/payments/update-status/{orderId}")
+        void updatePaymentStatusByOrderId(@PathVariable("orderId") Long orderId, @RequestParam("status") String status);
     }

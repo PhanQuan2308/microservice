@@ -45,31 +45,29 @@ public class OrderController {
 
 
     @PostMapping("/payment-callback")
-    public ResponseEntity<String> handlePaymentCallback(@RequestBody PaymentCallbackDTO paymentCallbackDTO) {
+    public ResponseEntity<Map<String, Object>> handlePaymentCallback(@RequestBody PaymentCallbackDTO paymentCallbackDTO) {
+        logger.info("Received callback: {}", paymentCallbackDTO);
         String token = paymentCallbackDTO.getToken();
         Boolean isPaymentSuccessful = paymentCallbackDTO.getIsPaymentSuccessful();
-        logger.info("Received callback: token={}, isPaymentSuccessful={}", token, isPaymentSuccessful);
+
         try {
-            orderService.handlePaymentCallback(token, isPaymentSuccessful);
-            return ResponseEntity.ok("Payment callback handled successfully.");
+            Long orderId = orderService.handlePaymentCallback(token, isPaymentSuccessful);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("orderId", orderId);
+            response.put("message", "Payment callback handled successfully.");
+
+            logger.info("Payment callback handled for orderId: {}", orderId);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error in payment callback: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error handling payment callback");
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
-
-
-
-
-    @PostMapping("/initiate-payment")
-    public ResponseEntity<Map<String, String>> initiatePayment(@RequestBody OrderDTO orderDTO) {
-        String paymentUrl = orderService.initiatePayment(orderDTO);
-        Map<String, String> response = new HashMap<>();
-        response.put("paymentUrl", paymentUrl);
-        return ResponseEntity.ok(response);
-    }
-
-
 
 
 

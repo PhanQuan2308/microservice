@@ -44,7 +44,10 @@ public class PayPalService {
         Map<String, Object> purchaseUnit = new HashMap<>();
         purchaseUnit.put("amount", Map.of("currency_code", "USD", "value", amount.toString()));
         body.put("purchase_units", new Map[]{purchaseUnit});
-        body.put("application_context", Map.of("return_url", returnUrl, "cancel_url", cancelUrl));
+        body.put("application_context", Map.of(
+                "return_url", returnUrl + "?amount=" + amount,
+                "cancel_url", cancelUrl
+        ));
 
         String accessToken = getAccessToken();
         System.out.println("Access Token retrieved: " + accessToken);
@@ -100,6 +103,9 @@ public class PayPalService {
     }
     public boolean verifyPaymentStatus(String paymentToken, Double amount) {
         try {
+            System.out.println("Verifying payment with token: " + paymentToken);
+            System.out.println("Expected amount: " + amount);
+
             String accessToken = getAccessToken();
             String url = apiUrl + "/v2/checkout/orders/" + paymentToken;
 
@@ -117,8 +123,11 @@ public class PayPalService {
                 String status = rootNode.path("status").asText();
                 Double paidAmount = rootNode.path("purchase_units").get(0).path("amount").path("value").asDouble();
 
-                // Nếu trạng thái là "COMPLETED", thực hiện xác nhận thanh toán
-                if ("APPROVED".equalsIgnoreCase(status) && amount.equals(paidAmount)) {
+                System.out.println("Status from PayPal: " + status);
+                System.out.println("Paid amount from PayPal: " + paidAmount);
+
+                // Kiểm tra trạng thái thanh toán và giá trị amount
+                if ("APPROVED".equalsIgnoreCase(status) && amount != null && amount.equals(paidAmount)) {
                     String captureUrl = rootNode.path("links").get(2).path("href").asText();
                     HttpEntity<String> captureEntity = new HttpEntity<>(headers);
                     ResponseEntity<String> captureResponse = restTemplate.exchange(captureUrl, HttpMethod.POST, captureEntity, String.class);
@@ -130,7 +139,6 @@ public class PayPalService {
                         return "COMPLETED".equalsIgnoreCase(captureStatus);
                     }
                 }
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -138,6 +146,7 @@ public class PayPalService {
         }
         return false;
     }
+
 
 
 }

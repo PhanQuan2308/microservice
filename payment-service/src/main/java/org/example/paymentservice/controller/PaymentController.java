@@ -1,5 +1,6 @@
 package org.example.paymentservice.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.example.paymentservice.dto.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.service.PayPalService;
@@ -9,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +29,11 @@ public class PaymentController {
 
     @GetMapping("/paypal")
     public ResponseEntity<String> createPayPalPayment(@RequestParam Double amount) {
+        if (amount == null || amount <= 0) {
+            System.err.println("Invalid amount provided: " + amount);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid amount");
+        }
+
         System.out.println("Received request to create PayPal payment for amount: " + amount);
         try {
             String paymentUrl = payPalService.createPayment(amount);
@@ -38,27 +45,49 @@ public class PaymentController {
         }
     }
 
+
     @GetMapping("/verify")
-    public ResponseEntity<Boolean> verifyPayment(@RequestParam String token,@RequestParam Double amount) {
+    public ResponseEntity<Boolean> verifyPayment(@RequestParam String token,
+                                                 @RequestParam(required = false) Double amount) {
+        if (amount == null) {
+            System.err.println("Amount is null. Cannot verify payment.");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(false);
+        }
+
         boolean isVerified = payPalService.verifyPaymentStatus(token, amount);
         if (isVerified) {
+            System.out.println("Payment verified successfully for token: " + token);
             return ResponseEntity.ok(true);
-        }else {
+        } else {
+            System.err.println("Payment verification failed for token: " + token);
             return ResponseEntity.ok(false);
         }
     }
 
     @GetMapping("/paypal-return")
-    public ResponseEntity<String> handlePayPalReturn(@RequestParam String token) {
+    public void handlePayPalReturn(@RequestParam String token,
+                                   @RequestParam(required = false) Double amount,
+                                   HttpServletResponse response) throws IOException {
         System.out.println("PayPal Return with token: " + token);
-        return ResponseEntity.ok("Payment Successful");
+        System.out.println("Received amount: " + amount);
+
+        if (amount == null) {
+            System.err.println("Error: Amount is null. Cannot verify payment.");
+            response.sendRedirect("http://localhost:4200/user/checkout?token=" + token + "&status=failed");
+            return;
+        }
+
+        boolean isVerified = payPalService.verifyPaymentStatus(token, amount);
+        if (isVerified) {
+            response.sendRedirect("http://localhost:4200/user/checkout?token=" + token + "&status=success");
+        } else {
+            response.sendRedirect("http://localhost:4200/user/checkout?token=" + token + "&status=failed");
+        }
     }
 
-    @GetMapping("/paypal-cancel")
-    public ResponseEntity<String> handlePayPalCancel() {
-        System.out.println("PayPal Payment Canceled");
-        return ResponseEntity.ok("Payment Canceled");
-    }
+
+
+
 
     @PostMapping
     public ResponseEntity<Payment> createPayment(@RequestBody PaymentRequestDTO paymentRequestDTO) {
