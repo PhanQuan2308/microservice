@@ -86,6 +86,7 @@ public class OrderServiceImpl implements OrderService {
             OrderDetailsDTO detailsDTO = new OrderDetailsDTO();
             detailsDTO.setId(detail.getId());
             detailsDTO.setProductId(detail.getProductId());
+            detailsDTO.setProductName(detail.getProductName());
             detailsDTO.setQuantity(detail.getQuantity());
             detailsDTO.setPrice(detail.getPrice());
 
@@ -126,6 +127,7 @@ public class OrderServiceImpl implements OrderService {
             logger.info("Converting OrderDetail with productId: {}", detailDTO.getProductId());
             OrderDetail detail = new OrderDetail();
             detail.setProductId(detailDTO.getProductId());
+            detail.setProductName(detailDTO.getProductName());
             detail.setQuantity(detailDTO.getQuantity());
             detail.setPrice(detailDTO.getPrice());
             detail.setOrder(order);
@@ -161,21 +163,15 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder.setPaymentToken(paymentToken);
                 orderRepository.save(savedOrder);
 
-                logger.info("Sending email to {}", orderDTO.getAddress().getRecipientEmail());
                 emailService.sendEmail(
                         orderDTO.getAddress().getRecipientEmail(),
                         "Order Created Successfully",
                         "Your order has been created successfully. Total amount: " + totalAmount
                 );
-                logger.info("Email sent successfully to {}", orderDTO.getAddress().getRecipientEmail());
-
 
                 OrderDTO responseDTO = convertToOrderDTO(savedOrder);
                 responseDTO.setPaymentUrl(paymentUrl);
                 return responseDTO;
-
-
-
 
             } catch (Exception e) {
                 savedOrder.setStatus("FAILED");
@@ -209,13 +205,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public Long handlePaymentCallback(String token, boolean isPaymentSuccessful) {
-        logger.info("Handling payment callback with token: {}, success: {}", token, isPaymentSuccessful);
 
         Order order = orderRepository.findByPaymentToken(token)
                 .orElseThrow(() -> new RuntimeException("Order not found for token: " + token));
 
         if (isPaymentSuccessful) {
-            logger.info("Payment successful. Updating order ID: {} to COMPLETED", order.getOrderId());
             order.setStatus("COMPLETED");
             orderRepository.save(order);
 
@@ -228,9 +222,8 @@ public class OrderServiceImpl implements OrderService {
 
             try {
                 paymentServiceClient.createPayment(paymentRequestDTO);
-                logger.info("Payment created successfully for order ID: {}", order.getOrderId());
             } catch (Exception e) {
-                logger.error("Failed to create payment for order ID: {}", order.getOrderId(), e);
+                throw new RuntimeException("Failed to create payment for Order ID: " + order.getOrderId());
             }
 
             for (OrderDetail detail : order.getOrderDetails()) {
@@ -241,15 +234,18 @@ public class OrderServiceImpl implements OrderService {
                     logger.error("Failed to reduce stock for Product ID: {}", detail.getProductId(), e);
                 }
             }
+            try {
+                emailService.sendEmail(
+                        order.getAddress().getRecipientEmail(),
+                        "Payment Successful",
+                        "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
+                );
+            }catch (Exception ex){
+                throw new RuntimeException("Create payment failed: " + ex.getMessage());
+            }
 
-            emailService.sendEmail(
-                    order.getAddress().getRecipientEmail(),
-                    "Payment Successful",
-                    "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
-            );
 
         } else {
-            logger.info("Payment failed. Updating order ID: {} to FAILED", order.getOrderId());
             order.setStatus("FAILED");
             orderRepository.save(order);
             emailService.sendEmail(

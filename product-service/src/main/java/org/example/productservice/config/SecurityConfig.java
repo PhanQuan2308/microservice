@@ -20,6 +20,7 @@ public class SecurityConfig {
                 .addFilterBefore(new RoleHeaderFilter(), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
+                        .requestMatchers("/api/v1/products/reduce-stock").hasAuthority("ROLE_USER")
                         .requestMatchers("/api/v1/products/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/v1/categories/**").permitAll()
                         .anyRequest().authenticated()

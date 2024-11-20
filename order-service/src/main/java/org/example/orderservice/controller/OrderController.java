@@ -72,11 +72,14 @@ public class OrderController {
             Long orderId = orderService.handlePaymentCallback(paymentCallbackDTO.getToken(),
                     paymentCallbackDTO.getIsPaymentSuccessful());
 
-            ApiResponse<Long> response = ApiResponse.success(
-                    orderId,
-                    "Payment Success"
-            );
-            return ResponseEntity.ok(response);
+            ApiResponse<Long> response;
+            if (paymentCallbackDTO.getIsPaymentSuccessful()) {
+                response = ApiResponse.success(orderId, "Payment Success");
+                return ResponseEntity.ok(response);
+            } else {
+                response = ApiResponse.error(HttpStatus.BAD_REQUEST, "Payment Failed", orderId);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
         } catch (Exception e) {
             logger.error("Error handling payment callback: ", e);
 
@@ -88,6 +91,7 @@ public class OrderController {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
 
 
 

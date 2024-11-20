@@ -37,7 +37,6 @@ public class PayPalService {
 
     public String createPayment(Double amount) throws Exception {
         URI uri = new URI(apiUrl + "/v2/checkout/orders");
-        System.out.println("Creating PayPal payment with URI: " + uri);
 
         Map<String, Object> body = new HashMap<>();
         body.put("intent", "CAPTURE");
@@ -76,7 +75,6 @@ public class PayPalService {
     private String getAccessToken() throws Exception {
         URI uri = new URI(apiUrl + "/v1/oauth2/token");
         String credentials = Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes());
-        System.out.println("Base64 Encoded Credentials: " + credentials);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Basic " + credentials);
@@ -101,6 +99,7 @@ public class PayPalService {
             throw new RuntimeException("Error fetching PayPal access token", e);
         }
     }
+
     public boolean verifyPaymentStatus(String paymentToken, Double amount) {
         try {
             System.out.println("Verifying payment with token: " + paymentToken);
