@@ -12,6 +12,9 @@ import org.example.orderservice.repository.OrderDetailRepository;
 import org.example.orderservice.service.OrderService;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -301,11 +304,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<OrderDTO> getAllOrders() {
-        return orderRepository.findAll().stream()
+    public Page<OrderDTO> getAllOrders(Pageable pageable) {
+        Page<Order> ordersPage = orderRepository.findAll(pageable);
+        List<OrderDTO> orderDTOs = ordersPage.getContent().stream()
                 .map(this::convertToOrderDTO)
                 .collect(Collectors.toList());
+
+        return new PageImpl<>(orderDTOs, pageable, ordersPage.getTotalElements());
     }
+
 
     @Override
     @Transactional

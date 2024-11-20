@@ -18,8 +18,8 @@ public class OrderDetail {
 
     private Long productId;
     private String productName;
-    private double price;
-    private int quantity;
+    private Double price;
+    private Integer quantity;
 
     @ManyToOne
     @JoinColumn(name = "order_id", nullable = false)

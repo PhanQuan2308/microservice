@@ -18,6 +18,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .addFilterBefore(new RoleHeaderFilter(), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1/orders/getall").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/v1/orders/**").permitAll()
 
                         .anyRequest().authenticated()

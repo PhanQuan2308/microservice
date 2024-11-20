@@ -5,10 +5,12 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import org.example.userservice.dto.UserDTO;
 import org.example.userservice.entity.User;
-import org.example.userservice.service.UserService;
+import org.example.userservice.service.impl.UserServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -18,11 +20,14 @@ import java.util.List;
 public class UserController {
 
     @Autowired
-    private UserService userService;
+    private UserServiceImpl userService;
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     @GetMapping("/token/blacklist/check")
     public ResponseEntity<Boolean> isTokenBlacklisted(@RequestParam("token") String token) {
+        logger.debug("Received Blacklist Check Request for Token: {}", token);
         boolean isBlacklisted = userService.isTokenBlacklisted(token);
+        logger.debug("Blacklist Check Result for Token: {} is {}", token, isBlacklisted);
         return ResponseEntity.ok(isBlacklisted);
     }
 

@@ -126,7 +126,6 @@ public class PayPalService {
                 System.out.println("Status from PayPal: " + status);
                 System.out.println("Paid amount from PayPal: " + paidAmount);
 
-                // Kiểm tra trạng thái thanh toán và giá trị amount
                 if ("APPROVED".equalsIgnoreCase(status) && amount != null && amount.equals(paidAmount)) {
                     String captureUrl = rootNode.path("links").get(2).path("href").asText();
                     HttpEntity<String> captureEntity = new HttpEntity<>(headers);
