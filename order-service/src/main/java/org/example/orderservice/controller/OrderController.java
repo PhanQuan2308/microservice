@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+
 
 @RestController
 @RequestMapping("api/v1/orders")
@@ -65,6 +65,31 @@ public class OrderController {
         }
     }
 
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<ApiResponse<Map<String, String>>> updateOrderStatus(
+            @PathVariable Long orderId,
+            @RequestParam String status) {
+        try {
+            orderService.updateOrderStatus(orderId, status);
+            Map<String, String> result = new HashMap<>();
+            result.put("orderId", String.valueOf(orderId));
+            result.put("status", status);
+
+            ApiResponse<Map<String, String>> response = ApiResponse.success(
+                    result,
+                    "Order status updated successfully"
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            logger.error("Error updating order status for orderId {}: {}", orderId, ex.getMessage());
+            ApiResponse<Map<String, String>> response = ApiResponse.error(
+                    HttpStatus.BAD_REQUEST,
+                    "Failed to update order status",
+                    null
+            );
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+    }
 
     @PostMapping("/payment-callback")
     public ResponseEntity<ApiResponse<Long>> handlePaymentCallback(@RequestBody PaymentCallbackDTO paymentCallbackDTO) {

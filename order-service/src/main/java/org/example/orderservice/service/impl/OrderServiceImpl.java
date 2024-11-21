@@ -199,6 +199,15 @@ public class OrderServiceImpl implements OrderService {
         return null;
     }
 
+    @Override
+    @Transactional
+    public void updateOrderStatus(Long orderId, String status) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        order.setStatus(status);
+        orderRepository.save(order);
+    }
 
 
 

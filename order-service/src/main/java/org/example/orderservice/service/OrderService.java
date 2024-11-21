@@ -16,4 +16,5 @@ public interface OrderService {
     AddressDTO updateAddress(Long orderId, AddressDTO updatedAddressDTO);
     Long handlePaymentCallback(String token, boolean isPaymentSuccessful);
     String initiatePayment(OrderDTO orderDTO);
+    void updateOrderStatus(Long orderId, String status);
 }
