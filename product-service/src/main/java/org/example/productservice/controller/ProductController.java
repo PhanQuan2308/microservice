@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.example.productservice.dto.ProductDTO;
+import org.example.productservice.event.ProductStockReductionRequest;
+import org.example.productservice.response.ApiResponse;
 import org.example.productservice.service.ProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,101 +30,127 @@ public class ProductController {
     @Autowired
     private ProductService productService;
 
-
     @PostMapping("/with-images")
-    public ResponseEntity<ProductDTO> createProductWithImages(
+    public ResponseEntity<ApiResponse<ProductDTO>> createProductWithImages(
             @Valid @ModelAttribute ProductDTO productDTO,
             @RequestParam(value = "images", required = false) List<MultipartFile> images) {
         try {
             if (images == null) images = new ArrayList<>();
             ProductDTO createdProduct = productService.createProductWithImages(productDTO, images);
-            return ResponseEntity.ok(createdProduct);
+            return ResponseEntity.ok(ApiResponse.success(createdProduct, "Product created successfully"));
         } catch (IOException e) {
             logger.error("Error creating product with images", e);
-            return ResponseEntity.status(500).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error creating product", null));
         }
     }
 
     @PostMapping("/reduce-stock")
-    public ResponseEntity<Void> reduceStock(
-            @RequestParam Long productId,
-            @RequestParam Integer quantity
-    ){
-        productService.reduceStock(productId, quantity);
-        return ResponseEntity.status(HttpStatus.OK).build();
+    public ResponseEntity<ApiResponse<Void>> reduceStock(
+            @RequestBody List<ProductStockReductionRequest> stockReductionRequests) {
+        try {
+            productService.reduceStock(stockReductionRequests);
+            return ResponseEntity.ok(ApiResponse.success(null, "Stock reduced successfully for all requested products"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, "Failed to reduce stock: " + e.getMessage(), null));
+        }
     }
+
 
     @GetMapping
-    public ResponseEntity<Page<ProductDTO>> getAllProducts(
+    public ResponseEntity<ApiResponse<Page<ProductDTO>>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<ProductDTO> productsPage = productService.getAllProducts(pageable);
-        return ResponseEntity.ok(productsPage);
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<ProductDTO> productsPage = productService.getAllProducts(pageable);
+            return ResponseEntity.ok(ApiResponse.success(productsPage, "Products retrieved successfully"));
+        } catch (Exception e) {
+            logger.error("Error retrieving products", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving products", null));
+        }
     }
 
-
-
-
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
-        ProductDTO product = productService.getProductById(id);
-        return ResponseEntity.ok(product);
+    public ResponseEntity<ApiResponse<ProductDTO>> getProductById(@PathVariable Long id) {
+        try {
+            ProductDTO product = productService.getProductById(id);
+            return ResponseEntity.ok(ApiResponse.success(product, "Product retrieved successfully"));
+        } catch (RuntimeException e) {
+            logger.error("Error retrieving product with ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(HttpStatus.NOT_FOUND, "Product not found: " + e.getMessage(), null));
+        }
     }
 
     @PutMapping("/{productId}/images/partial")
-    public ResponseEntity<Void> updatePartialProductImages(
+    public ResponseEntity<ApiResponse<Void>> updatePartialProductImages(
             @PathVariable Long productId,
             @RequestParam("imageUrlsToDelete") String imageUrlsToDeleteJson,
             @RequestPart(value = "newImages", required = false) List<MultipartFile> newImages) {
         try {
             List<String> imageUrlsToDelete = new ObjectMapper().readValue(imageUrlsToDeleteJson, new TypeReference<List<String>>() {});
             productService.updatePartialImageUrls(productId, imageUrlsToDelete, newImages);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.ok(ApiResponse.success(null, "Product images updated successfully"));
         } catch (IOException e) {
             logger.error("Error updating partial images", e);
-            return ResponseEntity.status(500).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error updating partial images", null));
         }
-    }
-
-
-
-
-    @GetMapping("/{productId}/images")
-    public ResponseEntity<List<String>> getProductImages(@PathVariable Long productId) {
-        return ResponseEntity.ok(productService.getImageUrls(productId));
     }
 
     @DeleteMapping("/{productId}/images")
-    public ResponseEntity<Void> deleteProductImages(
+    public ResponseEntity<ApiResponse<Void>> deleteProductImages(
             @PathVariable Long productId,
             @RequestBody List<String> imageUrls) {
-        productService.deleteImageUrls(productId, imageUrls);
-        return ResponseEntity.noContent().build();
-    }
-
-    @DeleteMapping("/{productId}/images/all")
-    public ResponseEntity<Void> deleteAllProductImages(@PathVariable Long productId) {
-        productService.deleteAllImageUrls(productId);
-        return ResponseEntity.noContent().build();
-    }
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.noContent().build();
-    }
-    @PutMapping("/{productId}/with-images")
-    public ResponseEntity<ProductDTO> updateProductWithImages(
-            @PathVariable Long productId,
-            @Valid  @ModelAttribute ProductDTO productDTO,
-            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
         try {
-            ProductDTO updatedProduct = productService.updateProductWithImages(productId, productDTO, images);
-            return ResponseEntity.ok(updatedProduct);
-        } catch (IOException e) {
-            logger.error("Error updating product with images", e);
-            return ResponseEntity.status(500).build();
+            productService.deleteImageUrls(productId, imageUrls);
+            return ResponseEntity.ok(ApiResponse.success(null, "Product images deleted successfully"));
+        } catch (Exception e) {
+            logger.error("Error deleting images for Product ID: {}", productId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error deleting product images", null));
         }
     }
 
+    @DeleteMapping("/{productId}/images/all")
+    public ResponseEntity<ApiResponse<Void>> deleteAllProductImages(@PathVariable Long productId) {
+        try {
+            productService.deleteAllImageUrls(productId);
+            return ResponseEntity.ok(ApiResponse.success(null, "All product images deleted successfully"));
+        } catch (Exception e) {
+            logger.error("Error deleting all images for Product ID: {}", productId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error deleting all product images", null));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long id) {
+        try {
+            productService.deleteProduct(id);
+            return ResponseEntity.ok(ApiResponse.success(null, "Product deleted successfully"));
+        } catch (RuntimeException e) {
+            logger.error("Error deleting product with ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, "Failed to delete product: " + e.getMessage(), null));
+        }
+    }
+
+    @PutMapping("/{productId}/with-images")
+    public ResponseEntity<ApiResponse<ProductDTO>> updateProductWithImages(
+            @PathVariable Long productId,
+            @Valid @ModelAttribute ProductDTO productDTO,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images) {
+        try {
+            ProductDTO updatedProduct = productService.updateProductWithImages(productId, productDTO, images);
+            return ResponseEntity.ok(ApiResponse.success(updatedProduct, "Product updated successfully"));
+        } catch (IOException e) {
+            logger.error("Error updating product with images", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error updating product", null));
+        }
+    }
 }

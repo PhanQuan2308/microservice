@@ -1,8 +1,9 @@
 package org.example.paymentservice.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.example.paymentservice.dto.PaymentRequestDTO;
+import org.example.paymentservice.dto.request.PaymentRequestDTO;
 import org.example.paymentservice.entity.Payment;
+import org.example.paymentservice.response.ApiResponse;
 import org.example.paymentservice.service.PayPalService;
 import org.example.paymentservice.service.impl.PaymentServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -27,23 +29,44 @@ public class PaymentController {
         this.payPalService = payPalService;
     }
 
+    @PutMapping("/update-status/{orderId}")
+    public ResponseEntity<ApiResponse<Void>> updatePaymentStatusByOrderId(
+            @PathVariable Long orderId,
+            @RequestParam String status) {
+        try {
+            paymentService.updatePaymentStatusByOrderId(orderId, status);
+
+            ApiResponse<Void> response = ApiResponse.success(null, "Payment status updated successfully");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            System.err.println("Error in Controller: " + e.getMessage());
+            ApiResponse<Void> errorResponse = ApiResponse.error(
+                    HttpStatus.BAD_REQUEST,
+                    "Failed to update payment status: " + e.getMessage(),
+                    null
+            );
+            return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+
     @GetMapping("/paypal")
-    public ResponseEntity<String> createPayPalPayment(@RequestParam Double amount) {
+    public ResponseEntity<Map<String, String>> createPayPalPayment(@RequestParam Double amount) {
         if (amount == null || amount <= 0) {
             System.err.println("Invalid amount provided: " + amount);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid amount");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
 
         System.out.println("Received request to create PayPal payment for amount: " + amount);
         try {
-            String paymentUrl = payPalService.createPayment(amount);
-            System.out.println("Redirecting to PayPal approval URL: " + paymentUrl);
-            return ResponseEntity.ok(paymentUrl);
+            Map<String, String> paymentResult = payPalService.createPayment(amount);
+            return ResponseEntity.ok(paymentResult);
         } catch (Exception e) {
             System.err.println("Error in createPayPalPayment: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating PayPal payment");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
+
 
 
     @GetMapping("/verify")

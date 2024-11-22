@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByPaymentToken(String token);
+    Optional<Order> findByTransactionId(String transactionId);
 
     Page<Order> findAll(Pageable pageable);
 }

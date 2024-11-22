@@ -153,7 +153,7 @@ public class OrderController {
                     order,
                     "Get order with id:" +orderId +"successfully"
             );
-                    return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
         }catch (Exception e){
             logger.error("Error getting order by id: ", e);
             ApiResponse<OrderDTO> response = ApiResponse.error(
@@ -161,7 +161,7 @@ public class OrderController {
                     "Not found product with id: " + orderId,
                     null
             );
-                    return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
 

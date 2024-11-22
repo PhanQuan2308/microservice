@@ -3,6 +3,7 @@ package org.example.productservice.service.impl;
 import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.entity.Category;
 import org.example.productservice.entity.Product;
+import org.example.productservice.event.ProductStockReductionRequest;
 import org.example.productservice.repository.CategoryRepository;
 import org.example.productservice.repository.ProductRepository;
 import org.example.productservice.service.CloudinaryService;
@@ -209,16 +210,17 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    @Transactional
-    public void reduceStock(Long productId, Integer quantity) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        if(product.getQuantity() < quantity){
-            throw new RuntimeException( productId + "Not enough quantity stock");
-        }
-
-        product.setQuantity(product.getQuantity() - quantity);
-        productRepository.save(product);
+    public void reduceStock(List<ProductStockReductionRequest> stockReductions) {
+        stockReductions.forEach(reduction -> {
+            productRepository.findById(reduction.getProductId()).ifPresent(product -> {
+                if (product.getQuantity() < reduction.getQuantity()) {
+                    throw new RuntimeException("Not enough stock for product ID: " + reduction.getProductId());
+                }
+                product.setQuantity(product.getQuantity() - reduction.getQuantity());
+                productRepository.save(product);
+                System.out.println("Stock reduced for product ID: " + reduction.getProductId());
+            });
+        });
     }
 
 

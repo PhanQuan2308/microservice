@@ -35,7 +35,7 @@ public class PayPalService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public String createPayment(Double amount) throws Exception {
+    public Map<String, String> createPayment(Double amount) throws Exception {
         URI uri = new URI(apiUrl + "/v2/checkout/orders");
 
         Map<String, Object> body = new HashMap<>();
@@ -49,28 +49,27 @@ public class PayPalService {
         ));
 
         String accessToken = getAccessToken();
-        System.out.println("Access Token retrieved: " + accessToken);
-
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + accessToken);
         headers.set("Content-Type", "application/json");
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-        System.out.println("Sending request to PayPal with body: " + body);
-
         try {
             String response = restTemplate.postForObject(uri, entity, String.class);
-            System.out.println("PayPal Response: " + response);
-
             JsonNode jsonResponse = objectMapper.readTree(response);
+
             String approvalLink = jsonResponse.get("links").get(1).get("href").asText();
-            System.out.println("Approval Link: " + approvalLink);
-            return approvalLink;
+            String transactionId = jsonResponse.get("id").asText();
+
+            Map<String, String> result = new HashMap<>();
+            result.put("approvalLink", approvalLink);
+            result.put("transactionId", transactionId);
+            return result;
         } catch (Exception e) {
-            System.err.println("Error in createPayment: " + e.getMessage());
             throw new RuntimeException("Error creating PayPal payment", e);
         }
     }
+
 
     private String getAccessToken() throws Exception {
         URI uri = new URI(apiUrl + "/v1/oauth2/token");
@@ -138,6 +137,7 @@ public class PayPalService {
                     }
                 }
             }
+
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("Error verifying payment status: " + e.getMessage());

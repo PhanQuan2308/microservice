@@ -6,9 +6,12 @@ import org.example.orderservice.dto.*;
 import org.example.orderservice.entity.Address;
 import org.example.orderservice.entity.Order;
 import org.example.orderservice.entity.OrderDetail;
+import org.example.orderservice.event.OrderEvent;
+import org.example.orderservice.event.ProductStockReductionRequest;
 import org.example.orderservice.producer.OrderProducer;
 import org.example.orderservice.repository.OrderRepository;
 import org.example.orderservice.repository.OrderDetailRepository;
+import org.example.orderservice.response.ApiResponse;
 import org.example.orderservice.service.OrderService;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.slf4j.Logger;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -80,6 +84,7 @@ public class OrderServiceImpl implements OrderService {
         orderDTO.setUserId(order.getUserId());
         orderDTO.setShippingFee(order.getShippingFee());
         orderDTO.setPaymentToken(order.getPaymentToken());
+        orderDTO.setTransactionId(order.getTransactionId());
         orderDTO.setAddress(convertToDTO(order.getAddress()));
 
         List<OrderDetailsDTO> orderDetailDTOs = order.getOrderDetails().stream().map(detail -> {
@@ -91,12 +96,19 @@ public class OrderServiceImpl implements OrderService {
             detailsDTO.setPrice(detail.getPrice());
 
             try {
-                ProductDTO productDTO = productServiceClient.getProductById(detail.getProductId());
-                detailsDTO.setProductName(productDTO.getProductName());
-                detailsDTO.setProduct(productDTO);
-                logger.info("Product fetched successfully for productId: {}", detail.getProductId());
+                // Gọi ProductServiceClient
+                ApiResponse<ProductDTO> response = productServiceClient.getProductById(detail.getProductId());
+                if (response != null && response.getData() != null) {
+                    ProductDTO productDTO = response.getData();
+                    detailsDTO.setProductName(productDTO.getProductName());
+                    detailsDTO.setProduct(productDTO);
+                } else {
+                    logger.warn("No product details found for productId: {}", detail.getProductId());
+                    detailsDTO.setProductName("Unknown Product");
+                    detailsDTO.setProduct(null);
+                }
             } catch (Exception e) {
-                logger.error("Failed to fetch product details for productId: {}", detail.getProductId(), e);
+                logger.error("Error fetching product details for productId: {}", detail.getProductId(), e);
                 detailsDTO.setProductName("Unknown Product");
                 detailsDTO.setProduct(null);
             }
@@ -117,6 +129,7 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(orderDTO.getStatus());
         order.setTotalAmount(orderDTO.getTotalAmount());
         order.setShippingFee(orderDTO.getShippingFee());
+        order.setTransactionId(orderDTO.getTransactionId());
         Address address = convertToEntity(orderDTO.getAddress());
         order.setAddress(address);
         if (address != null) {
@@ -143,50 +156,54 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderDTO createOrder(OrderDTO orderDTO) {
+        Order order = convertToOrderEntity(orderDTO);
+        order.setStatus("PENDING");
+
+        double subtotal = orderDTO.getOrderDetails().stream()
+                .mapToDouble(detail -> detail.getPrice() * detail.getQuantity())
+                .sum();
+        double totalAmount = subtotal + order.getShippingFee();
+        order.setTotalAmount(totalAmount);
+
+        Order savedOrder = orderRepository.save(order);
+        orderDetailRepository.saveAll(order.getOrderDetails());
+
         try {
-            Order order = convertToOrderEntity(orderDTO);
-            order.setStatus("PENDING");
+            Map<String, String> paymentResult = paymentServiceClient.createPayPalPayment(totalAmount);
+            String paymentUrl = paymentResult.get("approvalLink");
+            String transactionId = paymentResult.get("transactionId");
 
-            double subtotal = orderDTO.getOrderDetails().stream()
-                    .mapToDouble(detail -> detail.getPrice() * detail.getQuantity())
-                    .sum();
-            double totalAmount = subtotal + order.getShippingFee();
-            order.setTotalAmount(totalAmount);
+            savedOrder.setPaymentToken(extractTokenFromUrl(paymentUrl));
+            savedOrder.setTransactionId(transactionId);
+            orderRepository.save(savedOrder);
 
-            Order savedOrder = orderRepository.save(order);
-            orderDetailRepository.saveAll(order.getOrderDetails());
+            PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
+            paymentRequestDTO.setOrderId(savedOrder.getOrderId());
+            paymentRequestDTO.setAmount(totalAmount);
+            paymentRequestDTO.setStatus("PENDING");
+            paymentRequestDTO.setUserId(order.getUserId());
+            paymentRequestDTO.setPaymentMethod("PAYPAL");
+            paymentRequestDTO.setTransactionId(transactionId);
 
-            try {
-                String paymentUrl = paymentServiceClient.createPayPalPayment(totalAmount);
-                String paymentToken = extractTokenFromUrl(paymentUrl);
+            paymentServiceClient.createPayment(paymentRequestDTO);
+            logger.info("Payment created with status PENDING for Order ID: {}", savedOrder.getOrderId());
 
-                savedOrder.setPaymentToken(paymentToken);
-                orderRepository.save(savedOrder);
+            emailService.sendEmail(
+                    orderDTO.getAddress().getRecipientEmail(),
+                    "Order Created Successfully",
+                    "Your order has been created successfully. Total amount: " + totalAmount
+            );
 
-                emailService.sendEmail(
-                        orderDTO.getAddress().getRecipientEmail(),
-                        "Order Created Successfully",
-                        "Your order has been created successfully. Total amount: " + totalAmount
-                );
-
-                OrderDTO responseDTO = convertToOrderDTO(savedOrder);
-                responseDTO.setPaymentUrl(paymentUrl);
-                return responseDTO;
-
-            } catch (Exception e) {
-                savedOrder.setStatus("FAILED");
-                orderRepository.save(savedOrder);
-                emailService.sendEmail(
-                        orderDTO.getAddress().getRecipientEmail(),
-                        "Order Creation Failed",
-                        "An error occurred while creating your order: " + e.getMessage()
-                );
-                throw new RuntimeException("Failed to initiate payment for Order ID: " + savedOrder.getOrderId());
-            }
+            OrderDTO responseDTO = convertToOrderDTO(savedOrder);
+            responseDTO.setPaymentUrl(paymentUrl);
+            return responseDTO;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create order: " + e.getMessage());
+            savedOrder.setStatus("FAILED");
+            orderRepository.save(savedOrder);
+            throw new RuntimeException("Failed to initiate payment for Order ID: " + savedOrder.getOrderId());
         }
     }
+
 
     private String extractTokenFromUrl(String paymentUrl) {
         if (paymentUrl != null && paymentUrl.contains("token=")) {
@@ -222,36 +239,24 @@ public class OrderServiceImpl implements OrderService {
             order.setStatus("COMPLETED");
             orderRepository.save(order);
 
-            PaymentRequestDTO paymentRequestDTO = new PaymentRequestDTO();
-            paymentRequestDTO.setOrderId(order.getOrderId());
-            paymentRequestDTO.setAmount(order.getTotalAmount());
-            paymentRequestDTO.setStatus("COMPLETED");
-            paymentRequestDTO.setUserId(order.getUserId());
-            paymentRequestDTO.setPaymentMethod("PAYPAL");
-
             try {
-                paymentServiceClient.createPayment(paymentRequestDTO);
+                List<ProductStockReductionRequest> stockReductions = order.getOrderDetails().stream()
+                        .map(detail -> new ProductStockReductionRequest(detail.getProductId(), detail.getQuantity()))
+                        .collect(Collectors.toList());
+
+                OrderEvent orderEvent = new OrderEvent(order.getOrderId(), stockReductions);
+                orderProducer.sendOrderEvent(orderEvent);
+                logger.info("Order event sent to Kafka: {}", orderEvent);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to create payment for Order ID: " + order.getOrderId());
+                logger.error("Failed to send order event to Kafka", e);
+                throw e;
             }
 
-            for (OrderDetail detail : order.getOrderDetails()) {
-                try {
-                    productServiceClient.reduceStock(detail.getProductId(), detail.getQuantity());
-                    logger.info("Stock reduced for Product ID: {}", detail.getProductId());
-                } catch (Exception e) {
-                    logger.error("Failed to reduce stock for Product ID: {}", detail.getProductId(), e);
-                }
-            }
-            try {
-                emailService.sendEmail(
-                        order.getAddress().getRecipientEmail(),
-                        "Payment Successful",
-                        "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
-                );
-            }catch (Exception ex){
-                throw new RuntimeException("Create payment failed: " + ex.getMessage());
-            }
+            emailService.sendEmail(
+                    order.getAddress().getRecipientEmail(),
+                    "Payment Successful",
+                    "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
+            );
 
 
         } else {
@@ -345,8 +350,10 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public String initiatePayment(OrderDTO orderDTO) {
         double totalAmount = calculateTotalAmount(orderDTO);
-        String paymentUrl = paymentServiceClient.createPayPalPayment(totalAmount);
-        return paymentUrl;
+        Map<String, String> paymentResult = paymentServiceClient.createPayPalPayment(totalAmount);
+        String approvalLink = paymentResult.get("approvalLink");
+        return approvalLink;
+
     }
 
     public double calculateTotalAmount(OrderDTO orderDTO) {

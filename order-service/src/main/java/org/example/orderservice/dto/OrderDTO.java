@@ -33,6 +33,7 @@ public class OrderDTO {
     private String paymentUrl;
 
     private String paymentToken;
+    private String transactionId;
 
     @NotNull(message = "Address cannot be null")
     private AddressDTO address;

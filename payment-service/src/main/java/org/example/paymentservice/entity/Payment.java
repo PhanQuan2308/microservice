@@ -22,4 +22,5 @@ public class Payment {
     private Double amount;
     private String status;
     private String paymentMethod;
+        private String transactionId;
 }

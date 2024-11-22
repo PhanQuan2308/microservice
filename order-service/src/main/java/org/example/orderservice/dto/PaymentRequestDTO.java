@@ -11,4 +11,5 @@ public class PaymentRequestDTO {
     private String status;
     private Long userId;
     private String paymentMethod;
+    private String transactionId;
 }

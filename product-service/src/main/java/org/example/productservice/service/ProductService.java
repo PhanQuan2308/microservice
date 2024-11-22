@@ -1,6 +1,7 @@
 package org.example.productservice.service;
 
 import org.example.productservice.dto.ProductDTO;
+import org.example.productservice.event.ProductStockReductionRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,5 +27,5 @@ public interface ProductService {
 
     void deleteAllImageUrls(Long productId);
 
-    void reduceStock(Long productId, Integer quantity);
+    void reduceStock(List<ProductStockReductionRequest> stockReductions);
 }

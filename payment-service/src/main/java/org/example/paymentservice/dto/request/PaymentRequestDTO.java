@@ -1,4 +1,4 @@
-package org.example.paymentservice.dto;
+package org.example.paymentservice.dto.request;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -11,4 +11,5 @@ public class PaymentRequestDTO {
     private String status;
     private Long userId;
     private String paymentMethod;
+    private String transactionId;
 }
