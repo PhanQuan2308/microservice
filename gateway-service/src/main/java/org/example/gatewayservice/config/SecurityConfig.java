@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .pathMatchers("/api/v1/orders/**").permitAll()
                         .pathMatchers("/api/v1/user/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
-                        .pathMatchers("/api/v1/products/**").hasAuthority("ROLE_ADMIN")
+                        .pathMatchers("/api/v1/products/**").permitAll()
                         .pathMatchers("/api/v1/payments/**").permitAll()
                         .pathMatchers("/api/v1/categories/**").permitAll()
                         .pathMatchers("/uploads/images/**").permitAll()
