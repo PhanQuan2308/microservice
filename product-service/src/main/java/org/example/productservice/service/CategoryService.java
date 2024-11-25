@@ -1,6 +1,8 @@
 package org.example.productservice.service;
 
+import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.entity.Category;
+import org.example.productservice.entity.Product;
 
 import java.util.List;
 
@@ -10,4 +12,5 @@ public interface CategoryService {
     void deleteCategory(Long categoryId);
     Category getCategoryById(Long categoryId);
     List<Category> getAllCategories();
+    List<ProductDTO> getProductsByCategoryId(Long categoryId);
 }

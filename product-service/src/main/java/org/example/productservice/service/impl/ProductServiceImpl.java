@@ -242,11 +242,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Page<ProductDTO> getAllProducts(Pageable pageable) {
-        // Truy vấn phân trang từ repository
         Page<Product> productPage = productRepository.findAll(pageable);
 
-        // Chuyển đổi từ Page<Product> sang Page<ProductDTO>
-        return productPage.map(this::convertToProductDTO);  // Chuyển đổi các đối tượng Product thành ProductDTO
+        return productPage.map(this::convertToProductDTO);
     }
 
 

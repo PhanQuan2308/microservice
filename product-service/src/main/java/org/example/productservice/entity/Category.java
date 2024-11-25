@@ -1,5 +1,6 @@
 package org.example.productservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,5 +16,8 @@ public class Category {
     private Long categoryId;
     private String categoryName;
 
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference
+    private List<Product> products;
 
 }

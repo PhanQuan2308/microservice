@@ -1,6 +1,8 @@
 package org.example.productservice.controller;
 
+import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.entity.Category;
+import org.example.productservice.entity.Product;
 import org.example.productservice.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -44,4 +46,11 @@ public class CategoryController {
         List<Category> categories = categoryService.getAllCategories();
         return ResponseEntity.ok(categories);
     }
+
+    @GetMapping("/{categoryId}/products")
+    public ResponseEntity<List<ProductDTO>> getProductsByCategoryId(@PathVariable Long categoryId) {
+        List<ProductDTO> products = categoryService.getProductsByCategoryId(categoryId);
+        return ResponseEntity.ok(products);
+    }
+
 }

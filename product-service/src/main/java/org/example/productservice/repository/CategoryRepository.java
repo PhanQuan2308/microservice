@@ -37,4 +37,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     @Query(value = "SELECT * FROM category where category_name = :categoryName", nativeQuery = true)
     Optional<Category> findCategoryByName(@Param("categoryName") String categoryName);
+
+    @Query("SELECT c FROM Category c JOIN FETCH c.products WHERE c.categoryId = :categoryId")
+    Category findCategoryWithProducts(Long categoryId);
 }
