@@ -231,42 +231,56 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public Long handlePaymentCallback(String token, boolean isPaymentSuccessful) {
-
         Order order = orderRepository.findByPaymentToken(token)
                 .orElseThrow(() -> new RuntimeException("Order not found for token: " + token));
 
-        if (isPaymentSuccessful) {
-            order.setStatus("COMPLETED");
-            orderRepository.save(order);
+        try {
+            if (isPaymentSuccessful) {
+                order.setStatus("COMPLETED");
+                orderRepository.save(order);
 
-            try {
-                List<ProductStockReductionRequest> stockReductions = order.getOrderDetails().stream()
-                        .map(detail -> new ProductStockReductionRequest(detail.getProductId(), detail.getQuantity()))
-                        .collect(Collectors.toList());
+                try {
+                    List<ProductStockReductionRequest> stockReductions = order.getOrderDetails().stream()
+                            .map(detail -> new ProductStockReductionRequest(detail.getProductId(), detail.getQuantity()))
+                            .collect(Collectors.toList());
 
-                OrderEvent orderEvent = new OrderEvent(order.getOrderId(), stockReductions);
-                orderProducer.sendOrderEvent(orderEvent);
-                logger.info("Order event sent to Kafka: {}", orderEvent);
-            } catch (Exception e) {
-                logger.error("Failed to send order event to Kafka", e);
-                throw e;
+                    OrderEvent orderEvent = new OrderEvent(order.getOrderId(), stockReductions);
+                    orderProducer.sendOrderEvent(orderEvent);
+                    logger.info("Order event sent to Kafka: {}", orderEvent);
+
+                } catch (Exception e) {
+                    logger.error("Failed to send order event to Kafka", e);
+                    order.setStatus("PENDING");
+                    orderRepository.save(order);
+
+                    emailService.sendEmail(
+                            order.getAddress().getRecipientEmail(),
+                            "Payment Successful but Stock Update Failed",
+                            "Your payment for Order ID " + order.getOrderId() + " has been completed successfully, but we encountered an issue while updating the stock. Our team is investigating the issue. Please try again later."
+                    );
+
+                    throw new RuntimeException("Failed to reduce stock for Order ID: " + order.getOrderId() + " due to Kafka error.");
+                }
+
+                emailService.sendEmail(
+                        order.getAddress().getRecipientEmail(),
+                        "Payment Successful",
+                        "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
+                );
+
+            } else {
+                order.setStatus("FAILED");
+                orderRepository.save(order);
+                emailService.sendEmail(
+                        order.getAddress().getRecipientEmail(),
+                        "Payment Failed",
+                        "Your payment for Order ID " + order.getOrderId() + " has failed. Please try again."
+                );
             }
 
-            emailService.sendEmail(
-                    order.getAddress().getRecipientEmail(),
-                    "Payment Successful",
-                    "Your payment for Order ID " + order.getOrderId() + " has been completed successfully."
-            );
-
-
-        } else {
-            order.setStatus("FAILED");
-            orderRepository.save(order);
-            emailService.sendEmail(
-                    order.getAddress().getRecipientEmail(),
-                    "Payment Failed",
-                    "Your payment for Order ID " + order.getOrderId() + " has failed. Please try again."
-            );
+        } catch (Exception e) {
+            logger.error("Error handling payment callback: ", e);
+            throw new RuntimeException("Failed to handle payment callback for Order ID: " + order.getOrderId(), e);
         }
 
         return order.getOrderId();

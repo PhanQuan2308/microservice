@@ -209,6 +209,7 @@ public class ProductServiceImpl implements ProductService {
         productRepository.save(product);
     }
 
+
     @Override
     public void reduceStock(List<ProductStockReductionRequest> stockReductions) {
         stockReductions.forEach(reduction -> {
