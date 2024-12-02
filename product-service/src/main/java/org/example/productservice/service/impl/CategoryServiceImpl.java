@@ -1,8 +1,10 @@
 package org.example.productservice.service.impl;
 
+import org.example.productservice.dto.CategoryDTO;
 import org.example.productservice.dto.ProductDTO;
 import org.example.productservice.entity.Category;
 import org.example.productservice.entity.Product;
+import org.example.productservice.mapper.CategoryMapper;
 import org.example.productservice.mapper.ProductMapper;
 import org.example.productservice.producer.CategoryQueueProducer;
 import org.example.productservice.repository.CategoryRepository;
@@ -13,7 +15,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -35,7 +41,8 @@ public class CategoryServiceImpl implements CategoryService {
     @Autowired
     private ProductMapper productMapper;
 
-
+    @Autowired
+    private CategoryMapper categoryMapper;
 
     @Override
     public Category addCategory(String categoryName) {
@@ -45,10 +52,12 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category category = new Category();
         category.setCategoryName(categoryName);
+        category.setUpdatedAt(LocalDateTime.now());
         Category savedCategory = categoryRepository.save(category);
         categoryQueueProducer.sendToCategoryQueue(savedCategory);
         return savedCategory;
     }
+
 
     @Override
     public Category updateCategory(Long categoryId, String categoryName) {
@@ -56,6 +65,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
         category.setCategoryName(categoryName);
+        category.setUpdatedAt(LocalDateTime.now());
         Category updatedCategory = categoryRepository.save(category);
         categoryQueueProducer.sendToCategoryQueue(updatedCategory);
         return updatedCategory;
@@ -72,20 +82,20 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public Category getCategoryById(Long categoryId) {
+    public CategoryDTO getCategoryById(Long categoryId) {
         String key = "category:" + categoryId;
-        Category category = (Category) redisTemplate.opsForValue().get(key);
-
-        if (category != null) {
-            System.out.println("Fetched category from Redis: " + category.getCategoryName());
-            return category;
+        CategoryDTO categoryDTO = (CategoryDTO) redisTemplate.opsForValue().get(key);
+        if (categoryDTO != null) {
+            System.out.println("Fetched category from Redis: " + categoryDTO.getCategoryName());
+            return categoryDTO;
         }
-
-        category = categoryRepository.findById(categoryId)
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
-        redisTemplate.opsForValue().set(key, category);
-        return category;
+        categoryDTO = categoryMapper.toDTO(category);
+        redisTemplate.opsForValue().set(key, categoryDTO);
+        return categoryDTO;
     }
+
 
     @Override
     public List<Category> getAllCategories() {
@@ -118,5 +128,39 @@ public class CategoryServiceImpl implements CategoryService {
         return productDTOs;
     }
 
+    @Override
+    public void batchUpdateCategories(List<Category> categories) {
+        Map<String, Object> categoryCache = new HashMap<>();
+        try {
+            for (Category category : categories) {
+                String redisKey = "category:" + category.getCategoryId();
+
+                CategoryDTO categoryDTO = categoryMapper.toDTO(category);
+
+                CategoryDTO cachedCategoryDTO = (CategoryDTO) redisTemplate.opsForValue().get(redisKey);
+                if (cachedCategoryDTO == null ||
+                        (category.getUpdatedAt() != null && cachedCategoryDTO.getUpdatedAt() != null &&
+                                category.getUpdatedAt().isAfter(cachedCategoryDTO.getUpdatedAt()))) {
+                    categoryCache.put(redisKey, categoryDTO);
+                    System.out.printf("Updated category: %s in batch\n", category.getCategoryName());
+                }
+            }
+            if (!categoryCache.isEmpty()) {
+                redisTemplate.opsForValue().multiSet(categoryCache);
+                System.out.printf("Batch updated categories in Redis\n");
+            } else {
+                System.out.printf("No categories found in batch\n");
+            }
+        } catch (Exception e) {
+            System.err.printf("Error updating Redis: %s\n", e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void updateAllCategoriesToRedis() {
+        List<Category> categories = categoryRepository.findAllWithProducts();
+        batchUpdateCategories(categories);
+    }
 
 }

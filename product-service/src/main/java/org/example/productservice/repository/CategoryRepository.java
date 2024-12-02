@@ -40,4 +40,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     @Query("SELECT c FROM Category c JOIN FETCH c.products WHERE c.categoryId = :categoryId")
     Category findCategoryWithProducts(Long categoryId);
+
+    @Query("SELECT c FROM Category c LEFT JOIN FETCH c.products")
+    List<Category> findAllWithProducts();
+
 }
